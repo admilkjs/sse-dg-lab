@@ -1,29 +1,32 @@
 /**
- * Waveform Tools
- * Feature: dg-lab-sse-tool
- * 
- * MCP tools for waveform management:
- * - dg_parse_waveform: Parse waveform data and save
- * - dg_list_waveforms: List all saved waveforms
- * - dg_get_waveform: Get waveform by name
- * - dg_delete_waveform: Delete waveform by name
+ * @fileoverview 波形工具
+ * @description MCP 波形管理工具
+ * - dg_parse_waveform: 解析波形数据并保存
+ * - dg_list_waveforms: 列出所有保存的波形
+ * - dg_get_waveform: 按名称获取波形
+ * - dg_delete_waveform: 按名称删除波形
  */
 
 import type { Tool, ToolResult, ToolHandler, JsonSchema } from "../tool-manager";
 import { WaveformStorage, persistWaveforms } from "../waveform-storage";
 import { parseWaveform } from "../waveform-parser";
 
-// Extended tool type with handler for internal use
+/**
+ * 带处理函数的工具类型（内部使用）
+ */
 export interface ToolWithHandler extends Tool {
   handler: ToolHandler;
 }
 
-// Shared waveform storage instance
+/** 共享的波形存储实例 */
 let waveformStorage: WaveformStorage | null = null;
+/** 存储路径 */
 let storagePath = "./data/waveforms.json";
 
 /**
- * Initialize waveform storage
+ * 初始化波形存储
+ * @param storage - 波形存储实例（可选）
+ * @param path - 存储路径（可选）
  */
 export function initWaveformStorage(storage?: WaveformStorage, path?: string): void {
   waveformStorage = storage || new WaveformStorage();
@@ -31,7 +34,8 @@ export function initWaveformStorage(storage?: WaveformStorage, path?: string): v
 }
 
 /**
- * Get waveform storage instance
+ * 获取波形存储实例
+ * @returns 波形存储实例
  */
 export function getWaveformStorage(): WaveformStorage {
   if (!waveformStorage) {
@@ -41,7 +45,9 @@ export function getWaveformStorage(): WaveformStorage {
 }
 
 /**
- * Create tool error result
+ * 创建错误结果
+ * @param message - 错误消息
+ * @returns 工具结果
  */
 function createToolError(message: string): ToolResult {
   return {
@@ -51,7 +57,9 @@ function createToolError(message: string): ToolResult {
 }
 
 /**
- * Create tool success result
+ * 创建成功结果
+ * @param data - 数据
+ * @returns 工具结果
  */
 function createToolSuccess(data: unknown): ToolResult {
   return {
@@ -60,8 +68,8 @@ function createToolSuccess(data: unknown): ToolResult {
 }
 
 /**
- * dg_parse_waveform tool
- * Parse waveform data and save
+ * dg_parse_waveform 工具
+ * 解析波形数据并保存
  */
 export const dgParseWaveformTool: ToolWithHandler = {
   name: "dg_parse_waveform",
@@ -85,22 +93,22 @@ export const dgParseWaveformTool: ToolWithHandler = {
     const name = params.name as string | undefined;
 
     if (!hexData || typeof hexData !== "string") {
-      return createToolError("hexData is required and must be a string");
+      return createToolError("hexData 是必需的且必须是字符串");
     }
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
-      return createToolError("name is required and must be a non-empty string");
+      return createToolError("name 是必需的且必须是非空字符串");
     }
 
     try {
       const waveform = parseWaveform(hexData, name.trim());
 
-      // Save to storage
+      // 保存到存储
       const storage = getWaveformStorage();
       const existed = storage.has(name.trim());
       storage.save(waveform);
 
-      // Persist to disk
+      // 持久化到磁盘
       persistWaveforms(storage, storagePath);
 
       return createToolSuccess({
@@ -125,14 +133,14 @@ export const dgParseWaveformTool: ToolWithHandler = {
       if (error instanceof Error) {
         return createToolError(error.message);
       }
-      return createToolError("Failed to parse waveform data");
+      return createToolError("解析波形数据失败");
     }
   },
 };
 
 /**
- * dg_list_waveforms tool
- * List all saved waveforms
+ * dg_list_waveforms 工具
+ * 列出所有保存的波形
  */
 export const dgListWaveformsTool: ToolWithHandler = {
   name: "dg_list_waveforms",
@@ -162,8 +170,8 @@ export const dgListWaveformsTool: ToolWithHandler = {
 };
 
 /**
- * dg_get_waveform tool
- * Get waveform by name
+ * dg_get_waveform 工具
+ * 按名称获取波形
  */
 export const dgGetWaveformTool: ToolWithHandler = {
   name: "dg_get_waveform",
@@ -182,14 +190,14 @@ export const dgGetWaveformTool: ToolWithHandler = {
     const name = params.name as string | undefined;
 
     if (!name || typeof name !== "string") {
-      return createToolError("name is required and must be a string");
+      return createToolError("name 是必需的且必须是字符串");
     }
 
     const storage = getWaveformStorage();
     const waveform = storage.get(name);
 
     if (!waveform) {
-      return createToolError(`Waveform not found: ${name}`);
+      return createToolError(`波形未找到: ${name}`);
     }
 
     return createToolSuccess({
@@ -204,8 +212,8 @@ export const dgGetWaveformTool: ToolWithHandler = {
 };
 
 /**
- * dg_delete_waveform tool
- * Delete waveform by name
+ * dg_delete_waveform 工具
+ * 按名称删除波形
  */
 export const dgDeleteWaveformTool: ToolWithHandler = {
   name: "dg_delete_waveform",
@@ -224,18 +232,18 @@ export const dgDeleteWaveformTool: ToolWithHandler = {
     const name = params.name as string | undefined;
 
     if (!name || typeof name !== "string") {
-      return createToolError("name is required and must be a string");
+      return createToolError("name 是必需的且必须是字符串");
     }
 
     const storage = getWaveformStorage();
 
     if (!storage.has(name)) {
-      return createToolError(`Waveform not found: ${name}`);
+      return createToolError(`波形未找到: ${name}`);
     }
 
     storage.delete(name);
 
-    // Persist to disk
+    // 持久化到磁盘
     persistWaveforms(storage, storagePath);
 
     return createToolSuccess({
@@ -246,7 +254,8 @@ export const dgDeleteWaveformTool: ToolWithHandler = {
 };
 
 /**
- * Get all waveform tools
+ * 获取所有波形工具
+ * @returns 波形工具数组
  */
 export function getWaveformTools(): ToolWithHandler[] {
   return [

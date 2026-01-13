@@ -1,17 +1,17 @@
 /**
- * WebSocket Server for DG-LAB
- * Self-hosted WebSocket server based on temp_dg_plugin/app.js
- * 
- * This replaces connecting to external WS server - we ARE the WS server
+ * @fileoverview DG-LAB WebSocket 服务器
+ * @description 自托管的 WebSocket 服务器，基于 temp_dg_plugin/app.js
+ * 替代连接外部 WS 服务器 - 我们就是 WS 服务器
  */
 
 import { WebSocketServer, WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import type { IncomingMessage } from "http";
 
-// DG-LAB WebSocket message types
+/** DG-LAB WebSocket 消息类型 */
 export type DGLabMessageType = "bind" | "msg" | "heartbeat" | "break" | "error";
 
+/** DG-LAB WebSocket 消息 */
 export interface DGLabMessage {
   type: DGLabMessageType | string;
   clientId: string;
@@ -21,21 +21,22 @@ export interface DGLabMessage {
   time?: number;
 }
 
-// Client info stored in the server
+/** 客户端信息 */
 interface ClientInfo {
   id: string;
   ws: WebSocket;
   type: "controller" | "app" | "unknown";
-  boundTo: string | null; // The other party's clientId
+  boundTo: string | null;
   lastActive: number;
 }
 
-// Waveform send timer info
+/** 波形发送定时器信息 */
 interface WaveformTimer {
   timerId: ReturnType<typeof setInterval>;
   remaining: number;
 }
 
+/** WebSocket 服务器选项 */
 export interface WSServerOptions {
   port: number;
   heartbeatInterval?: number;
@@ -44,11 +45,14 @@ export interface WSServerOptions {
   onBindChange?: (controllerId: string, appId: string | null) => void;
 }
 
+/**
+ * DG-LAB WebSocket 服务器类
+ */
 export class DGLabWSServer {
   private wss: WebSocketServer | null = null;
   private clients: Map<string, ClientInfo> = new Map();
-  private relations: Map<string, string> = new Map(); // controllerId -> appId
-  private waveformTimers: Map<string, WaveformTimer> = new Map(); // clientId-channel -> timer
+  private relations: Map<string, string> = new Map();
+  private waveformTimers: Map<string, WaveformTimer> = new Map();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private options: Required<WSServerOptions>;
 
@@ -62,61 +66,43 @@ export class DGLabWSServer {
     };
   }
 
-  /**
-   * Start the WebSocket server
-   */
+  /** 启动 WebSocket 服务器 */
   start(): void {
     this.wss = new WebSocketServer({ port: this.options.port });
-
     this.wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       this.handleConnection(ws, req);
     });
-
-    // Start heartbeat timer
     this.heartbeatTimer = setInterval(() => {
       this.sendHeartbeats();
     }, this.options.heartbeatInterval);
-
-    console.log(`[WS Server] Listening on port ${this.options.port}`);
+    console.log(`[WS 服务器] 监听端口 ${this.options.port}`);
   }
 
-
-  /**
-   * Stop the WebSocket server
-   */
+  /** 停止 WebSocket 服务器 */
   stop(): void {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
-
-    // Clear all waveform timers
     for (const timer of this.waveformTimers.values()) {
       clearInterval(timer.timerId);
     }
     this.waveformTimers.clear();
-
-    // Close all connections
     for (const client of this.clients.values()) {
       client.ws.close();
     }
     this.clients.clear();
     this.relations.clear();
-
     if (this.wss) {
       this.wss.close();
       this.wss = null;
     }
-
-    console.log("[WS Server] Stopped");
+    console.log("[WS 服务器] 已停止");
   }
 
-  /**
-   * Handle new WebSocket connection
-   */
+  /** 处理新的 WebSocket 连接 */
   private handleConnection(ws: WebSocket, _req: IncomingMessage): void {
     const clientId = uuidv4();
-    
     const clientInfo: ClientInfo = {
       id: clientId,
       ws,
@@ -124,220 +110,121 @@ export class DGLabWSServer {
       boundTo: null,
       lastActive: Date.now(),
     };
-    
     this.clients.set(clientId, clientInfo);
-    console.log(`[WS Server] New connection: ${clientId}`);
-
-    // Send clientId to the new client
-    this.send(ws, {
-      type: "bind",
-      clientId,
-      targetId: "",
-      message: "targetId",
-    });
-
-    ws.on("message", (data) => {
-      this.handleMessage(clientId, data.toString());
-    });
-
-    ws.on("close", () => {
-      this.handleClose(clientId);
-    });
-
+    console.log(`[WS 服务器] 新连接: ${clientId}`);
+    this.send(ws, { type: "bind", clientId, targetId: "", message: "targetId" });
+    ws.on("message", (data) => this.handleMessage(clientId, data.toString()));
+    ws.on("close", () => this.handleClose(clientId));
     ws.on("error", (error) => {
-      console.error(`[WS Server] Error for ${clientId}:`, error.message);
+      console.error(`[WS 服务器] 错误 ${clientId}:`, error.message);
       this.handleError(clientId, error);
     });
   }
 
-  /**
-   * Handle incoming message
-   */
+  /** 处理收到的消息 */
   private handleMessage(clientId: string, rawData: string): void {
-    console.log(`[WS Server] Received from ${clientId}: ${rawData}`);
-    
+    console.log(`[WS 服务器] 收到 ${clientId}: ${rawData}`);
     const client = this.clients.get(clientId);
     if (!client) return;
-
     client.lastActive = Date.now();
 
     let data: DGLabMessage;
     try {
       data = JSON.parse(rawData);
     } catch {
-      this.send(client.ws, {
-        type: "msg",
-        clientId: "",
-        targetId: "",
-        message: "403",
-      });
+      this.send(client.ws, { type: "msg", clientId: "", targetId: "", message: "403" });
       return;
     }
 
-    // Validate message source
     if (data.clientId !== clientId && data.targetId !== clientId) {
-      // Allow if this is the initial bind from APP
       if (!(data.type === "bind" && data.message === "DGLAB")) {
-        this.send(client.ws, {
-          type: "msg",
-          clientId: "",
-          targetId: "",
-          message: "404",
-        });
+        this.send(client.ws, { type: "msg", clientId: "", targetId: "", message: "404" });
         return;
       }
     }
 
-    // Route message by type
     switch (data.type) {
-      case "bind":
-        this.handleBind(clientId, data);
-        break;
-      case "msg":
-        this.handleMsg(clientId, data);
-        break;
-      case "heartbeat":
-        // Just update lastActive, already done above
-        break;
-      default:
-        // Forward to bound partner
-        this.forwardMessage(clientId, data);
-        break;
+      case "bind": this.handleBind(clientId, data); break;
+      case "msg": this.handleMsg(clientId, data); break;
+      case "heartbeat": break;
+      default: this.forwardMessage(clientId, data); break;
     }
   }
 
-  /**
-   * Handle bind request
-   */
+  /** 处理绑定请求 */
   private handleBind(clientId: string, data: DGLabMessage): void {
     const client = this.clients.get(clientId);
     if (!client) return;
 
-    // APP initiates bind: message = "DGLAB"
     if (data.message === "DGLAB" && data.clientId && data.targetId) {
       const controllerId = data.clientId;
       const appId = data.targetId;
 
-      // Check both clients exist
       if (!this.clients.has(controllerId) || !this.clients.has(appId)) {
-        this.send(client.ws, {
-          type: "bind",
-          clientId: controllerId,
-          targetId: appId,
-          message: "401",
-        });
+        this.send(client.ws, { type: "bind", clientId: controllerId, targetId: appId, message: "401" });
         return;
       }
 
-      // Check neither is already bound
       const alreadyBound = [controllerId, appId].some(
         (id) => this.relations.has(id) || [...this.relations.values()].includes(id)
       );
-
       if (alreadyBound) {
-        this.send(client.ws, {
-          type: "bind",
-          clientId: controllerId,
-          targetId: appId,
-          message: "400",
-        });
+        this.send(client.ws, { type: "bind", clientId: controllerId, targetId: appId, message: "400" });
         return;
       }
 
-      // Create binding
       this.relations.set(controllerId, appId);
-      
       const controllerClient = this.clients.get(controllerId);
       const appClient = this.clients.get(appId);
-      
-      if (controllerClient) {
-        controllerClient.type = "controller";
-        controllerClient.boundTo = appId;
-      }
-      if (appClient) {
-        appClient.type = "app";
-        appClient.boundTo = controllerId;
-      }
+      if (controllerClient) { controllerClient.type = "controller"; controllerClient.boundTo = appId; }
+      if (appClient) { appClient.type = "app"; appClient.boundTo = controllerId; }
 
-      // Notify both parties
-      const successMsg: DGLabMessage = {
-        type: "bind",
-        clientId: controllerId,
-        targetId: appId,
-        message: "200",
-      };
-
+      const successMsg: DGLabMessage = { type: "bind", clientId: controllerId, targetId: appId, message: "200" };
       if (controllerClient) this.send(controllerClient.ws, successMsg);
       if (appClient) this.send(appClient.ws, successMsg);
-
       this.options.onBindChange(controllerId, appId);
-      console.log(`[WS Server] Bound: ${controllerId} <-> ${appId}`);
+      console.log(`[WS 服务器] 已绑定: ${controllerId} <-> ${appId}`);
     }
   }
 
-
-  /**
-   * Handle msg type messages
-   */
+  /** 处理 msg 类型消息 */
   private handleMsg(clientId: string, data: DGLabMessage): void {
-    const { message, targetId } = data;
+    const { message } = data;
 
-    // Strength update from APP: strength-A+B+limitA+limitB
     if (message.startsWith("strength-")) {
       const parsed = this.parseStrengthMessage(message);
       if (parsed) {
-        // Find the controller bound to this APP
         const client = this.clients.get(clientId);
         if (client?.boundTo) {
-          this.options.onStrengthUpdate(
-            client.boundTo,
-            parsed.strengthA,
-            parsed.strengthB,
-            parsed.limitA,
-            parsed.limitB
-          );
+          this.options.onStrengthUpdate(client.boundTo, parsed.strengthA, parsed.strengthB, parsed.limitA, parsed.limitB);
         }
-        // Forward to controller
         this.forwardMessage(clientId, data);
       }
       return;
     }
 
-    // Feedback from APP: feedback-index
     if (message.startsWith("feedback-")) {
       const index = parseInt(message.substring(9));
       if (!isNaN(index)) {
         const client = this.clients.get(clientId);
-        if (client?.boundTo) {
-          this.options.onFeedback(client.boundTo, index);
-        }
+        if (client?.boundTo) this.options.onFeedback(client.boundTo, index);
       }
       this.forwardMessage(clientId, data);
       return;
     }
 
-    // Forward other messages
     this.forwardMessage(clientId, data);
   }
 
-  /**
-   * Forward message to bound partner
-   */
+  /** 转发消息给绑定的对方 */
   private forwardMessage(fromClientId: string, data: DGLabMessage): void {
     const client = this.clients.get(fromClientId);
     if (!client?.boundTo) return;
 
-    // Check binding relationship
     const boundId = this.relations.get(fromClientId) || 
       [...this.relations.entries()].find(([_, v]) => v === fromClientId)?.[0];
-    
     if (!boundId) {
-      this.send(client.ws, {
-        type: "bind",
-        clientId: data.clientId,
-        targetId: data.targetId,
-        message: "402",
-      });
+      this.send(client.ws, { type: "bind", clientId: data.clientId, targetId: data.targetId, message: "402" });
       return;
     }
 
@@ -345,25 +232,16 @@ export class DGLabWSServer {
     if (targetClient) {
       this.send(targetClient.ws, data);
     } else {
-      this.send(client.ws, {
-        type: "msg",
-        clientId: data.clientId,
-        targetId: data.targetId,
-        message: "404",
-      });
+      this.send(client.ws, { type: "msg", clientId: data.clientId, targetId: data.targetId, message: "404" });
     }
   }
 
-  /**
-   * Handle client disconnect
-   */
+  /** 处理客户端断开 */
   private handleClose(clientId: string): void {
-    console.log(`[WS Server] Disconnected: ${clientId}`);
-    
+    console.log(`[WS 服务器] 断开: ${clientId}`);
     const client = this.clients.get(clientId);
     if (!client) return;
 
-    // Clear any waveform timers for this client
     for (const [key, timer] of this.waveformTimers.entries()) {
       if (key.startsWith(clientId + "-")) {
         clearInterval(timer.timerId);
@@ -371,303 +249,168 @@ export class DGLabWSServer {
       }
     }
 
-    // Notify bound partner
     if (client.boundTo) {
       const partner = this.clients.get(client.boundTo);
       if (partner) {
-        this.send(partner.ws, {
-          type: "break",
-          clientId: client.boundTo,
-          targetId: clientId,
-          message: "209",
-        });
+        this.send(partner.ws, { type: "break", clientId: client.boundTo, targetId: clientId, message: "209" });
         partner.ws.close();
         partner.boundTo = null;
       }
-
-      // Clean up relation
       this.relations.delete(clientId);
       this.relations.delete(client.boundTo);
-      
-      this.options.onBindChange(
-        client.type === "controller" ? clientId : client.boundTo,
-        null
-      );
+      this.options.onBindChange(client.type === "controller" ? clientId : client.boundTo, null);
     }
 
     this.clients.delete(clientId);
-    console.log(`[WS Server] Cleaned up ${clientId}, clients: ${this.clients.size}`);
+    console.log(`[WS 服务器] 已清理 ${clientId}，客户端数: ${this.clients.size}`);
   }
 
-  /**
-   * Handle client error
-   */
+  /** 处理客户端错误 */
   private handleError(clientId: string, error: Error): void {
     const client = this.clients.get(clientId);
     if (!client?.boundTo) return;
-
     const partner = this.clients.get(client.boundTo);
     if (partner) {
-      this.send(partner.ws, {
-        type: "error",
-        clientId: client.boundTo,
-        targetId: clientId,
-        message: "500",
-      });
+      this.send(partner.ws, { type: "error", clientId: client.boundTo, targetId: clientId, message: "500" });
     }
   }
 
-  /**
-   * Send heartbeats to all clients
-   */
+  /** 发送心跳给所有客户端 */
   private sendHeartbeats(): void {
     if (this.clients.size === 0) return;
-
-    console.log(`[WS Server] Sending heartbeats to ${this.clients.size} clients`);
-    
+    console.log(`[WS 服务器] 发送心跳给 ${this.clients.size} 个客户端`);
     for (const [clientId, client] of this.clients.entries()) {
-      this.send(client.ws, {
-        type: "heartbeat",
-        clientId,
-        targetId: client.boundTo || "",
-        message: "200",
-      });
+      this.send(client.ws, { type: "heartbeat", clientId, targetId: client.boundTo || "", message: "200" });
     }
   }
 
-  /**
-   * Send message to WebSocket
-   */
+  /** 发送消息到 WebSocket */
   private send(ws: WebSocket, msg: DGLabMessage): void {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(msg));
     }
   }
 
-  /**
-   * Parse strength message: strength-A+B+limitA+limitB
-   */
-  private parseStrengthMessage(message: string): {
-    strengthA: number;
-    strengthB: number;
-    limitA: number;
-    limitB: number;
-  } | null {
+  /** 解析强度消息 */
+  private parseStrengthMessage(message: string): { strengthA: number; strengthB: number; limitA: number; limitB: number } | null {
     const match = message.match(/^strength-(\d+)\+(\d+)\+(\d+)\+(\d+)$/);
     if (!match) return null;
-
-    return {
-      strengthA: parseInt(match[1]!, 10),
-      strengthB: parseInt(match[2]!, 10),
-      limitA: parseInt(match[3]!, 10),
-      limitB: parseInt(match[4]!, 10),
-    };
+    return { strengthA: parseInt(match[1]!, 10), strengthB: parseInt(match[2]!, 10), limitA: parseInt(match[3]!, 10), limitB: parseInt(match[4]!, 10) };
   }
 
-  // ============ Public API for MCP Tools ============
+  // ============ MCP 工具公共 API ============
 
-  /**
-   * Get a new controller clientId (for dg_connect)
-   * Creates a virtual controller connection
-   */
+  /** 创建控制器（用于 dg_connect） */
   createController(): string {
     const clientId = uuidv4();
-    
-    // Create a mock WebSocket-like object for internal use
     const mockWs = this.createMockWebSocket(clientId);
-    
-    const clientInfo: ClientInfo = {
-      id: clientId,
-      ws: mockWs as unknown as WebSocket,
-      type: "controller",
-      boundTo: null,
-      lastActive: Date.now(),
-    };
-    
+    const clientInfo: ClientInfo = { id: clientId, ws: mockWs as unknown as WebSocket, type: "controller", boundTo: null, lastActive: Date.now() };
     this.clients.set(clientId, clientInfo);
-    console.log(`[WS Server] Created controller: ${clientId}`);
-    
+    console.log(`[WS 服务器] 创建控制器: ${clientId}`);
     return clientId;
   }
 
-  /**
-   * Create a mock WebSocket for internal controller
-   */
+  /** 创建内部控制器的模拟 WebSocket */
   private createMockWebSocket(clientId: string): object {
     return {
       readyState: WebSocket.OPEN,
-      send: (data: string) => {
-        // Internal controller receives messages here
-        // We can log or process them
-        console.log(`[WS Server] To controller ${clientId}: ${data}`);
-      },
-      close: () => {
-        // Handle close
-      },
+      send: (data: string) => { console.log(`[WS 服务器] 发送给控制器 ${clientId}: ${data}`); },
+      close: () => {},
     };
   }
 
-  /**
-   * Check if a controller is bound to an APP
-   */
-  isControllerBound(controllerId: string): boolean {
-    return this.relations.has(controllerId);
-  }
+  /** 检查控制器是否已绑定 APP */
+  isControllerBound(controllerId: string): boolean { return this.relations.has(controllerId); }
 
-  /**
-   * Get the APP clientId bound to a controller
-   */
-  getBoundAppId(controllerId: string): string | null {
-    return this.relations.get(controllerId) || null;
-  }
+  /** 获取绑定到控制器的 APP clientId */
+  getBoundAppId(controllerId: string): string | null { return this.relations.get(controllerId) || null; }
 
-  /**
-   * Get controller info
-   */
+  /** 获取控制器信息 */
   getController(controllerId: string): ClientInfo | null {
     const client = this.clients.get(controllerId);
     return client?.type === "controller" ? client : null;
   }
 
-  /**
-   * List all controllers
-   */
+  /** 列出所有控制器 */
   listControllers(): Array<{ id: string; boundTo: string | null; lastActive: number }> {
     const result: Array<{ id: string; boundTo: string | null; lastActive: number }> = [];
     for (const client of this.clients.values()) {
       if (client.type === "controller") {
-        result.push({
-          id: client.id,
-          boundTo: client.boundTo,
-          lastActive: client.lastActive,
-        });
+        result.push({ id: client.id, boundTo: client.boundTo, lastActive: client.lastActive });
       }
     }
     return result;
   }
 
-  /**
-   * Remove a controller
-   */
+  /** 移除控制器 */
   removeController(controllerId: string): boolean {
     const client = this.clients.get(controllerId);
     if (!client || client.type !== "controller") return false;
-    
     this.handleClose(controllerId);
     return true;
   }
 
-
-  /**
-   * Send strength command to APP (for dg_set_strength)
-   * Protocol: strength-channel+mode+value
-   */
+  /** 发送强度命令到 APP */
   sendStrength(controllerId: string, channel: "A" | "B", mode: "increase" | "decrease" | "set", value: number): boolean {
     const appId = this.relations.get(controllerId);
     if (!appId) return false;
-
     const appClient = this.clients.get(appId);
     if (!appClient) return false;
-
     const channelNum = channel === "A" ? 1 : 2;
     const modeNum = mode === "decrease" ? 0 : mode === "increase" ? 1 : 2;
     const message = `strength-${channelNum}+${modeNum}+${value}`;
-
-    this.send(appClient.ws, {
-      type: "msg",
-      clientId: controllerId,
-      targetId: appId,
-      message,
-    });
-
+    this.send(appClient.ws, { type: "msg", clientId: controllerId, targetId: appId, message });
     return true;
   }
 
-  /**
-   * Send waveform to APP (for dg_send_waveform)
-   * Protocol: pulse-channel:["hex1","hex2",...]
-   */
+  /** 发送波形到 APP */
   sendWaveform(controllerId: string, channel: "A" | "B", waveforms: string[]): boolean {
     const appId = this.relations.get(controllerId);
     if (!appId) return false;
-
     const appClient = this.clients.get(appId);
     if (!appClient) return false;
-
     const message = `pulse-${channel}:${JSON.stringify(waveforms)}`;
-
-    this.send(appClient.ws, {
-      type: "msg",
-      clientId: controllerId,
-      targetId: appId,
-      message,
-    });
-
+    this.send(appClient.ws, { type: "msg", clientId: controllerId, targetId: appId, message });
     return true;
   }
 
-  /**
-   * Clear waveform queue (for dg_clear_waveform)
-   * Protocol: clear-channel
-   */
+  /** 清空波形队列 */
   clearWaveform(controllerId: string, channel: "A" | "B"): boolean {
     const appId = this.relations.get(controllerId);
     if (!appId) return false;
-
     const appClient = this.clients.get(appId);
     if (!appClient) return false;
-
     const channelNum = channel === "A" ? 1 : 2;
-
-    this.send(appClient.ws, {
-      type: "msg",
-      clientId: controllerId,
-      targetId: appId,
-      message: `clear-${channelNum}`,
-    });
-
+    this.send(appClient.ws, { type: "msg", clientId: controllerId, targetId: appId, message: `clear-${channelNum}` });
     return true;
   }
 
-  /**
-   * Get QR code URL for APP to scan
-   * Format: https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#ws://host:port/clientId
-   */
+  /** 获取 APP 扫描的二维码 URL */
   getQRCodeUrl(controllerId: string, host: string): string {
     const wsUrl = `ws://${host}:${this.options.port}/${controllerId}`;
     return `https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#${wsUrl}`;
   }
 
-  /**
-   * Get WebSocket URL for APP to connect
-   */
+  /** 获取 APP 连接的 WebSocket URL */
   getWSUrl(controllerId: string, host: string): string {
     return `ws://${host}:${this.options.port}/${controllerId}`;
   }
 
-  /**
-   * Get server port
-   */
-  getPort(): number {
-    return this.options.port;
-  }
+  /** 获取服务器端口 */
+  getPort(): number { return this.options.port; }
 
-  /**
-   * Get client count
-   */
-  getClientCount(): number {
-    return this.clients.size;
-  }
+  /** 获取客户端数量 */
+  getClientCount(): number { return this.clients.size; }
 
-  /**
-   * Get relation count
-   */
-  getRelationCount(): number {
-    return this.relations.size;
-  }
+  /** 获取绑定关系数量 */
+  getRelationCount(): number { return this.relations.size; }
 }
 
-// Export error code mapping
+/**
+ * 映射 DG-LAB 错误码到消息
+ * @param code - 错误码
+ * @returns 错误消息
+ */
 export function mapDGLabErrorCode(code: number): string {
   const errors: Record<number, string> = {
     200: "成功",

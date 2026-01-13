@@ -3,357 +3,415 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DG-LAB MCP SSE 测试</title>
+  <title>DG-LAB MCP 测试工具</title>
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #eee; }
-    h1 { color: #00d4ff; margin-bottom: 20px; }
-    .container { max-width: 1400px; margin: 0 auto; }
-    .panel { background: #16213e; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
-    .panel h2 { margin: 0 0 10px 0; color: #00d4ff; font-size: 16px; }
-    .panel h3 { margin: 10px 0 8px 0; color: #aaa; font-size: 13px; border-bottom: 1px solid #333; padding-bottom: 5px; }
-    .status { padding: 8px 12px; border-radius: 4px; display: inline-block; margin-bottom: 10px; }
-    .status.connected { background: #0f5132; color: #75b798; }
-    .status.disconnected { background: #842029; color: #ea868f; }
-    .status.waiting { background: #664d03; color: #ffda6a; }
-    #output { background: #0f0f23; border-radius: 4px; padding: 10px; height: 350px; overflow-y: auto; font-family: monospace; font-size: 13px; }
-    .log-entry { margin: 4px 0; padding: 4px 8px; border-radius: 3px; word-break: break-all; }
-    .log-entry.event { background: #1e3a5f; }
-    .log-entry.send { background: #2d4a3e; }
-    .log-entry.receive { background: #3d2d4a; }
-    .log-entry.error { background: #4a2d2d; }
-    button { background: #00d4ff; color: #000; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; margin: 3px; font-size: 12px; }
-    button:hover { background: #00a8cc; }
-    button:disabled { background: #555; color: #888; cursor: not-allowed; }
-    .btn-danger { background: #dc3545; color: #fff; }
-    .btn-danger:hover { background: #bb2d3b; }
-    .btn-device { background: #6f42c1; color: #fff; }
-    .btn-device:hover { background: #5a32a3; }
-    .btn-control { background: #fd7e14; color: #000; }
-    .btn-control:hover { background: #e96b02; }
-    .btn-waveform { background: #20c997; color: #000; }
-    .btn-waveform:hover { background: #1aa179; }
-    input, textarea, select { background: #0f0f23; border: 1px solid #333; color: #eee; padding: 8px; border-radius: 4px; width: 100%; margin-bottom: 8px; }
-    textarea { height: 80px; font-family: monospace; font-size: 12px; }
-    .row { display: flex; gap: 15px; flex-wrap: wrap; }
-    .col { flex: 1; min-width: 350px; }
-    .col-wide { flex: 1.5; min-width: 450px; }
-    label { display: block; margin-bottom: 5px; color: #aaa; font-size: 13px; }
-    .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 5px; }
-    .input-group { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; }
-    .input-group input, .input-group select { flex: 1; margin-bottom: 0; }
-    .input-group button { white-space: nowrap; }
-    .small-input { width: 100px !important; flex: none !important; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1e1e2e; color: #cdd6f4; min-height: 100vh; }
+    .app { display: flex; height: 100vh; }
+    .sidebar { width: 280px; background: #181825; border-right: 1px solid #313244; display: flex; flex-direction: column; }
+    .sidebar-header { padding: 15px; border-bottom: 1px solid #313244; }
+    .sidebar-header h2 { color: #89b4fa; font-size: 14px; margin-bottom: 10px; }
+    .conn-status { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #f38ba8; }
+    .conn-dot.connected { background: #a6e3a1; }
+    .conn-btns { display: flex; gap: 5px; margin-top: 10px; }
+    .conn-btns button { flex: 1; padding: 6px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-connect { background: #89b4fa; color: #1e1e2e; }
+    .btn-disconnect { background: #f38ba8; color: #1e1e2e; }
+    .btn-connect:disabled, .btn-disconnect:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tool-list { flex: 1; overflow-y: auto; padding: 10px; }
+    .tool-group { margin-bottom: 15px; }
+    .tool-group-title { font-size: 11px; color: #6c7086; text-transform: uppercase; margin-bottom: 5px; padding: 0 5px; }
+    .tool-item { padding: 8px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-bottom: 2px; transition: background 0.15s; }
+    .tool-item:hover { background: #313244; }
+    .tool-item.active { background: #45475a; color: #89b4fa; }
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .toolbar { padding: 10px 15px; background: #181825; border-bottom: 1px solid #313244; display: flex; align-items: center; gap: 10px; }
+    .tool-name { font-size: 16px; font-weight: bold; color: #cba6f7; }
+    .btn-send { background: #a6e3a1; color: #1e1e2e; border: none; padding: 8px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-left: auto; }
+    .btn-send:hover { background: #94e2d5; }
+    .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .content { flex: 1; display: flex; overflow: hidden; }
+    .params-panel { width: 50%; border-right: 1px solid #313244; display: flex; flex-direction: column; }
+    .response-panel { width: 50%; display: flex; flex-direction: column; }
+    .panel-header { padding: 10px 15px; background: #11111b; font-size: 12px; color: #6c7086; text-transform: uppercase; border-bottom: 1px solid #313244; }
+    .panel-content { flex: 1; overflow-y: auto; padding: 15px; }
+    .param-item { margin-bottom: 15px; }
+    .param-label { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+    .param-name { font-weight: bold; color: #89b4fa; }
+    .param-required { color: #f38ba8; font-size: 10px; }
+    .param-optional { color: #6c7086; font-size: 10px; }
+    .param-type { color: #6c7086; font-size: 11px; margin-left: auto; }
+    .param-desc { font-size: 11px; color: #6c7086; margin-bottom: 5px; }
+    .param-input { width: 100%; background: #11111b; border: 1px solid #313244; color: #cdd6f4; padding: 8px 10px; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 13px; }
+    .param-input:focus { outline: none; border-color: #89b4fa; }
+    .param-input.textarea { min-height: 80px; resize: vertical; }
+    select.param-input { cursor: pointer; }
+    .response-content { background: #11111b; border-radius: 4px; padding: 15px; font-family: 'Consolas', monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; min-height: 200px; }
+    .json-key { color: #89b4fa; }
+    .json-string { color: #a6e3a1; }
+    .json-number { color: #fab387; }
+    .json-boolean { color: #cba6f7; }
+    .json-null { color: #6c7086; }
+    .log-entry { margin-bottom: 10px; padding: 10px; border-radius: 4px; }
+    .log-entry.send { background: #1e3a2e; border-left: 3px solid #a6e3a1; }
+    .log-entry.receive { background: #2e1e3a; border-left: 3px solid #cba6f7; }
+    .log-entry.error { background: #3a1e1e; border-left: 3px solid #f38ba8; }
+    .log-entry.event { background: #1e2e3a; border-left: 3px solid #89b4fa; }
+    .log-time { font-size: 10px; color: #6c7086; margin-bottom: 5px; }
+    .log-label { font-size: 11px; font-weight: bold; margin-bottom: 5px; }
+    .log-label.send { color: #a6e3a1; }
+    .log-label.receive { color: #cba6f7; }
+    .log-label.error { color: #f38ba8; }
+    .log-label.event { color: #89b4fa; }
+    .empty-state { color: #6c7086; text-align: center; padding: 40px; }
+    .mcp-btns { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
+    .mcp-btns button { padding: 4px 8px; font-size: 10px; background: #45475a; color: #cdd6f4; border: none; border-radius: 3px; cursor: pointer; }
+    .mcp-btns button:hover { background: #585b70; }
+    .clear-btn { background: #45475a !important; color: #cdd6f4 !important; font-size: 11px !important; padding: 5px 10px !important; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🔌 DG-LAB MCP SSE 测试工具</h1>
-    
-    <div class="row">
-      <div class="col">
-        <div class="panel">
-          <h2>连接状态</h2>
-          <div id="status" class="status disconnected">未连接</div>
-          <div>
-            <button id="connectBtn" onclick="connect()">连接 SSE</button>
-            <button id="disconnectBtn" onclick="disconnect()" disabled class="btn-danger">断开</button>
-          </div>
-          <div style="margin-top: 10px;">
-            <label>Session ID:</label>
-            <input type="text" id="sessionId" readonly placeholder="连接后自动获取">
-          </div>
+  <div class="app">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>🔌 DG-LAB MCP</h2>
+        <div class="conn-status">
+          <div id="connDot" class="conn-dot"></div>
+          <span id="connText">未连接</span>
         </div>
-
-        <div class="panel">
-          <h2>MCP 协议</h2>
-          <div class="tools-grid">
-            <button onclick="sendInitialize()">Initialize</button>
-            <button onclick="sendToolsList()">List Tools</button>
-            <button onclick="sendPing()">Ping</button>
-          </div>
+        <div class="conn-btns">
+          <button id="btnConnect" class="btn-connect" onclick="connect()">连接</button>
+          <button id="btnDisconnect" class="btn-disconnect" onclick="disconnect()" disabled>断开</button>
         </div>
-
-        <div class="panel">
-          <h2>🔌 设备工具 (Device Tools)</h2>
-          <div class="tools-grid">
-            <button class="btn-device" onclick="callTool('dg_connect', {})">dg_connect</button>
-            <button class="btn-device" onclick="callTool('dg_list_devices', {})">dg_list_devices</button>
-          </div>
-          
-          <h3>dg_set_alias - 设置设备别名</h3>
-          <div class="input-group">
-            <input type="text" id="aliasDeviceId" placeholder="Device ID">
-            <input type="text" id="aliasValue" placeholder="别名">
-            <button class="btn-device" onclick="setAlias()">设置</button>
-          </div>
-          
-          <h3>dg_find_device - 按别名查找</h3>
-          <div class="input-group">
-            <input type="text" id="findAlias" placeholder="别名">
-            <button class="btn-device" onclick="findDevice()">查找</button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <h2>⚡ 控制工具 (Control Tools)</h2>
-          
-          <h3>dg_set_strength - 设置强度</h3>
-          <div class="input-group">
-            <input type="text" id="strengthDeviceId" placeholder="Device ID">
-          </div>
-          <div class="input-group">
-            <select id="strengthChannel" class="small-input">
-              <option value="A">A通道</option>
-              <option value="B">B通道</option>
-            </select>
-            <select id="strengthMode" class="small-input">
-              <option value="set">set</option>
-              <option value="increase">increase</option>
-              <option value="decrease">decrease</option>
-            </select>
-            <input type="number" id="strengthValue" placeholder="值 0-200" class="small-input" min="0" max="200">
-            <button class="btn-control" onclick="setStrength()">发送</button>
-          </div>
-          
-          <h3>dg_send_waveform - 发送波形</h3>
-          <div class="input-group">
-            <input type="text" id="waveDeviceId" placeholder="Device ID">
-            <select id="waveChannel" class="small-input">
-              <option value="A">A通道</option>
-              <option value="B">B通道</option>
-            </select>
-          </div>
-          <textarea id="waveHexData" placeholder='波形HEX数组，如: ["0A0A0A0A64646464","0A0A0A0A64646464"]'>["0A0A0A0A64646464","0A0A0A0A64646464"]</textarea>
-          <button class="btn-control" onclick="sendWaveformData()">发送波形</button>
-          
-          <h3>dg_clear_waveform - 清空波形队列</h3>
-          <div class="input-group">
-            <input type="text" id="clearDeviceId" placeholder="Device ID">
-            <select id="clearChannel" class="small-input">
-              <option value="A">A通道</option>
-              <option value="B">B通道</option>
-            </select>
-            <button class="btn-control" onclick="clearWaveform()">清空</button>
-          </div>
-          
-          <h3>dg_get_status - 获取设备状态</h3>
-          <div class="input-group">
-            <input type="text" id="statusDeviceId" placeholder="Device ID">
-            <button class="btn-control" onclick="getStatus()">获取状态</button>
-          </div>
+        <div class="mcp-btns">
+          <button onclick="sendInitialize()">Initialize</button>
+          <button onclick="loadTools()">刷新工具</button>
+          <button onclick="sendPing()">Ping</button>
         </div>
       </div>
-
-      <div class="col">
-        <div class="panel">
-          <h2>🌊 波形工具 (Waveform Tools)</h2>
-          <button class="btn-waveform" onclick="callTool('dg_list_waveforms', {})">dg_list_waveforms</button>
-          
-          <h3>dg_parse_waveform - 解析波形</h3>
-          <div class="input-group">
-            <input type="text" id="parseName" placeholder="波形名称">
-          </div>
-          <textarea id="parseData" placeholder="Dungeonlab+pulse:...">Dungeonlab+pulse:0,1,8=10,20,4,1,1/50.00-0,75.00-1,100.00-0,50.00-1</textarea>
-          <button class="btn-waveform" onclick="parseWaveform()">解析并保存</button>
-          
-          <h3>dg_get_waveform - 获取波形</h3>
-          <div class="input-group">
-            <input type="text" id="getWaveformName" placeholder="波形名称">
-            <button class="btn-waveform" onclick="getWaveform()">获取</button>
-          </div>
-          
-          <h3>dg_delete_waveform - 删除波形</h3>
-          <div class="input-group">
-            <input type="text" id="deleteWaveformName" placeholder="波形名称">
-            <button class="btn-waveform btn-danger" onclick="deleteWaveform()">删除</button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <h2>自定义请求</h2>
-          <label>JSON-RPC 请求:</label>
-          <textarea id="customRequest">{"jsonrpc":"2.0","id":1,"method":"tools/list"}</textarea>
-          <button onclick="sendCustom()">发送</button>
-        </div>
+      <div class="tool-list" id="toolList">
+        <div class="empty-state">连接后点击"刷新工具"加载</div>
       </div>
-
-      <div class="col-wide">
-        <div class="panel">
-          <h2>日志输出 <button onclick="clearLog()" style="float: right; font-size: 11px; padding: 4px 8px;">清空</button></h2>
-          <div id="output"></div>
+    </div>
+    <div class="main">
+      <div class="toolbar">
+        <span class="tool-name" id="currentToolName">选择一个工具</span>
+        <button class="btn-send" id="btnSend" onclick="sendToolCall()" disabled>发送请求</button>
+      </div>
+      <div class="content">
+        <div class="params-panel">
+          <div class="panel-header">参数</div>
+          <div class="panel-content" id="paramsContainer">
+            <div class="empty-state">从左侧选择工具</div>
+          </div>
+        </div>
+        <div class="response-panel">
+          <div class="panel-header">
+            响应日志
+            <button class="clear-btn" onclick="clearLogs()" style="float:right;">清空</button>
+          </div>
+          <div class="panel-content" id="responseContainer"></div>
         </div>
       </div>
     </div>
   </div>
-
-  <script>
-    let eventSource = null;
-    let sessionId = null;
-    let requestId = 1;
-
-    function log(message, type = 'event') {
-      const output = document.getElementById('output');
-      const entry = document.createElement('div');
-      entry.className = `log-entry ${type}`;
-      const time = new Date().toLocaleTimeString();
-      let displayMsg = message;
-      if (type === 'receive' && message.includes('{')) {
-        try {
-          const jsonStart = message.indexOf('{');
-          const prefix = message.substring(0, jsonStart);
-          const jsonStr = message.substring(jsonStart);
-          const parsed = JSON.parse(jsonStr);
-          displayMsg = prefix + JSON.stringify(parsed, null, 2);
-        } catch {}
-      }
-      entry.innerHTML = `<strong>[${time}]</strong> <pre style="margin:0;white-space:pre-wrap;">${displayMsg}</pre>`;
-      output.appendChild(entry);
-      output.scrollTop = output.scrollHeight;
-    }
-
-    function clearLog() { document.getElementById('output').innerHTML = ''; }
-
-    function updateStatus(status, text) {
-      const el = document.getElementById('status');
-      el.className = `status ${status}`;
-      el.textContent = text;
-    }
-
-    function connect() {
-      if (eventSource) eventSource.close();
-      updateStatus('waiting', '连接中...');
-      log('正在连接 SSE...', 'event');
-      eventSource = new EventSource('http://localhost:3000/sse');
-      eventSource.onopen = () => log('SSE 连接已建立', 'event');
-      eventSource.addEventListener('endpoint', (e) => {
-        log(`收到 endpoint: ${e.data}`, 'receive');
-        const match = e.data.match(/sessionId=([^&]+)/);
-        if (match) {
-          sessionId = match[1];
-          document.getElementById('sessionId').value = sessionId;
-          updateStatus('connected', '已连接');
-          document.getElementById('connectBtn').disabled = true;
-          document.getElementById('disconnectBtn').disabled = false;
-          log(`Session ID: ${sessionId}`, 'event');
-        }
-      });
-      eventSource.addEventListener('message', (e) => log(`收到消息: ${e.data}`, 'receive'));
-      eventSource.onerror = () => {
-        log('SSE 连接错误', 'error');
-        updateStatus('disconnected', '连接错误');
-        document.getElementById('connectBtn').disabled = false;
-        document.getElementById('disconnectBtn').disabled = true;
-      };
-    }
-
-    function disconnect() {
-      if (eventSource) { eventSource.close(); eventSource = null; }
-      sessionId = null;
-      document.getElementById('sessionId').value = '';
-      updateStatus('disconnected', '已断开');
-      document.getElementById('connectBtn').disabled = false;
-      document.getElementById('disconnectBtn').disabled = true;
-      log('已断开连接', 'event');
-    }
-
-    async function sendRequest(request) {
-      if (!sessionId) { log('错误: 未连接，请先连接 SSE', 'error'); return; }
-      const url = `http://localhost:3000/message?sessionId=${sessionId}`;
-      log(`发送: ${JSON.stringify(request, null, 2)}`, 'send');
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(request)
-        });
-        const result = await response.json();
-        log(`HTTP 响应: ${JSON.stringify(result)}`, 'receive');
-      } catch (err) { log(`发送失败: ${err.message}`, 'error'); }
-    }
-
-    function sendInitialize() {
-      sendRequest({
-        jsonrpc: '2.0', id: requestId++, method: 'initialize',
-        params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'test-client', version: '1.0.0' } }
-      });
-    }
-    function sendToolsList() { sendRequest({ jsonrpc: '2.0', id: requestId++, method: 'tools/list' }); }
-    function sendPing() { sendRequest({ jsonrpc: '2.0', id: requestId++, method: 'ping' }); }
-
-    function callTool(name, args) {
-      sendRequest({ jsonrpc: '2.0', id: requestId++, method: 'tools/call', params: { name, arguments: args } });
-    }
-
-    // Device Tools
-    function setAlias() {
-      const deviceId = document.getElementById('aliasDeviceId').value;
-      const alias = document.getElementById('aliasValue').value;
-      if (!deviceId || !alias) { log('错误: 请输入 Device ID 和别名', 'error'); return; }
-      callTool('dg_set_alias', { deviceId, alias });
-    }
-    function findDevice() {
-      const alias = document.getElementById('findAlias').value;
-      if (!alias) { log('错误: 请输入别名', 'error'); return; }
-      callTool('dg_find_device', { alias });
-    }
-
-    // Control Tools
-    function setStrength() {
-      const deviceId = document.getElementById('strengthDeviceId').value;
-      const channel = document.getElementById('strengthChannel').value;
-      const mode = document.getElementById('strengthMode').value;
-      const value = parseInt(document.getElementById('strengthValue').value);
-      if (!deviceId) { log('错误: 请输入 Device ID', 'error'); return; }
-      if (isNaN(value)) { log('错误: 请输入有效的强度值', 'error'); return; }
-      callTool('dg_set_strength', { deviceId, channel, mode, value });
-    }
-    function sendWaveformData() {
-      const deviceId = document.getElementById('waveDeviceId').value;
-      const channel = document.getElementById('waveChannel').value;
-      const hexDataStr = document.getElementById('waveHexData').value;
-      if (!deviceId) { log('错误: 请输入 Device ID', 'error'); return; }
-      try {
-        const waveforms = JSON.parse(hexDataStr);
-        callTool('dg_send_waveform', { deviceId, channel, waveforms });
-      } catch (err) { log(`错误: 波形数据JSON解析失败 - ${err.message}`, 'error'); }
-    }
-    function clearWaveform() {
-      const deviceId = document.getElementById('clearDeviceId').value;
-      const channel = document.getElementById('clearChannel').value;
-      if (!deviceId) { log('错误: 请输入 Device ID', 'error'); return; }
-      callTool('dg_clear_waveform', { deviceId, channel });
-    }
-    function getStatus() {
-      const deviceId = document.getElementById('statusDeviceId').value;
-      if (!deviceId) { log('错误: 请输入 Device ID', 'error'); return; }
-      callTool('dg_get_status', { deviceId });
-    }
-
-    // Waveform Tools
-    function parseWaveform() {
-      const name = document.getElementById('parseName').value || 'test-wave-' + Date.now();
-      const hexData = document.getElementById('parseData').value;
-      if (!hexData) { log('错误: 请输入波形数据', 'error'); return; }
-      callTool('dg_parse_waveform', { hexData, name });
-    }
-    function getWaveform() {
-      const name = document.getElementById('getWaveformName').value;
-      if (!name) { log('错误: 请输入波形名称', 'error'); return; }
-      callTool('dg_get_waveform', { name });
-    }
-    function deleteWaveform() {
-      const name = document.getElementById('deleteWaveformName').value;
-      if (!name) { log('错误: 请输入波形名称', 'error'); return; }
-      if (confirm(`确定要删除波形 "${name}" 吗？`)) callTool('dg_delete_waveform', { name });
-    }
-    function sendCustom() {
-      try {
-        const request = JSON.parse(document.getElementById('customRequest').value);
-        if (!request.id) request.id = requestId++;
-        sendRequest(request);
-      } catch (err) { log(`JSON 解析错误: ${err.message}`, 'error'); }
-    }
-  </script>
 </body>
 </html>
+
+<script>
+let eventSource = null;
+let sessionId = null;
+let requestId = 1;
+let tools = [];
+let currentTool = null;
+const pendingRequests = new Map(); // 等待 SSE 响应的请求
+
+// 连接管理
+function connect() {
+  if (eventSource) eventSource.close();
+  updateConnStatus('waiting', '连接中...');
+  eventSource = new EventSource('http://localhost:3323/sse');
+  eventSource.onopen = () => addLog('SSE 连接已建立', 'event');
+  eventSource.addEventListener('endpoint', (e) => {
+    addLog(`收到 endpoint: ${e.data}`, 'event');
+    const match = e.data.match(/sessionId=([^&]+)/);
+    if (match) {
+      sessionId = match[1];
+      updateConnStatus('connected', `已连接: ${sessionId.slice(0,8)}...`);
+      document.getElementById('btnConnect').disabled = true;
+      document.getElementById('btnDisconnect').disabled = false;
+    }
+  });
+  eventSource.addEventListener('message', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      // 检查是否有等待这个响应的请求
+      if (data.id !== undefined && pendingRequests.has(data.id)) {
+        const resolve = pendingRequests.get(data.id);
+        pendingRequests.delete(data.id);
+        resolve(data);
+      }
+      addLog(formatResponse(data), 'receive', 'SSE 响应');
+    } catch {
+      addLog(e.data, 'receive', 'SSE 消息');
+    }
+  });
+  eventSource.onerror = () => {
+    addLog('SSE 连接错误', 'error');
+    updateConnStatus('disconnected', '连接错误');
+    document.getElementById('btnConnect').disabled = false;
+    document.getElementById('btnDisconnect').disabled = true;
+  };
+}
+
+function disconnect() {
+  if (eventSource) { eventSource.close(); eventSource = null; }
+  sessionId = null;
+  pendingRequests.clear();
+  updateConnStatus('disconnected', '已断开');
+  document.getElementById('btnConnect').disabled = false;
+  document.getElementById('btnDisconnect').disabled = true;
+  addLog('已断开连接', 'event');
+}
+
+function updateConnStatus(status, text) {
+  const dot = document.getElementById('connDot');
+  const txt = document.getElementById('connText');
+  dot.className = 'conn-dot' + (status === 'connected' ? ' connected' : '');
+  txt.textContent = text;
+}
+
+// 请求发送 - 等待 SSE 响应
+async function sendRequest(request) {
+  if (!sessionId) { addLog('错误: 未连接', 'error'); return null; }
+  const url = `http://localhost:3323/message?sessionId=${sessionId}`;
+  const reqId = request.id;
+  addLog(JSON.stringify(request, null, 2), 'send', '发送请求');
+  
+  // 创建等待 SSE 响应的 Promise
+  const responsePromise = new Promise((resolve) => {
+    pendingRequests.set(reqId, resolve);
+    // 超时 10 秒
+    setTimeout(() => {
+      if (pendingRequests.has(reqId)) {
+        pendingRequests.delete(reqId);
+        addLog(`请求 ${reqId} 超时`, 'error');
+        resolve(null);
+      }
+    }, 10000);
+  });
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+    if (!response.ok) {
+      addLog(`HTTP 错误: ${response.status}`, 'error');
+      pendingRequests.delete(reqId);
+      return null;
+    }
+    // 等待 SSE 响应
+    return await responsePromise;
+  } catch (err) {
+    addLog(`发送失败: ${err.message}`, 'error');
+    pendingRequests.delete(reqId);
+    return null;
+  }
+}
+
+// 格式化响应 - 解析 text 内容中的 JSON
+function formatResponse(obj) {
+  if (!obj) return 'null';
+  // 深拷贝处理
+  const processed = JSON.parse(JSON.stringify(obj));
+  // 处理 tool call 响应中的 content
+  if (processed.result && processed.result.content) {
+    processed.result.content = processed.result.content.map(item => {
+      if (item.type === 'text' && typeof item.text === 'string') {
+        try {
+          item.text = JSON.parse(item.text);
+          item._parsed = true;
+        } catch {}
+      }
+      return item;
+    });
+  }
+  return syntaxHighlight(JSON.stringify(processed, null, 2));
+}
+
+// JSON 语法高亮
+function syntaxHighlight(json) {
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+    let cls = 'json-number';
+    if (/^"/.test(match)) {
+      cls = /:$/.test(match) ? 'json-key' : 'json-string';
+    } else if (/true|false/.test(match)) {
+      cls = 'json-boolean';
+    } else if (/null/.test(match)) {
+      cls = 'json-null';
+    }
+    return `<span class="${cls}">${match}</span>`;
+  });
+}
+
+// 日志管理
+function addLog(content, type, label = '') {
+  const container = document.getElementById('responseContainer');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  const time = new Date().toLocaleTimeString();
+  entry.innerHTML = `
+    <div class="log-time">${time}</div>
+    ${label ? `<div class="log-label ${type}">${label}</div>` : ''}
+    <div class="response-content">${content}</div>
+  `;
+  container.appendChild(entry);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearLogs() {
+  document.getElementById('responseContainer').innerHTML = '';
+}
+
+// MCP 协议
+function sendInitialize() {
+  sendRequest({
+    jsonrpc: '2.0', id: requestId++, method: 'initialize',
+    params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'test-client', version: '1.0.0' } }
+  });
+}
+
+function sendPing() {
+  sendRequest({ jsonrpc: '2.0', id: requestId++, method: 'ping' });
+}
+
+// 加载工具列表
+async function loadTools() {
+  const result = await sendRequest({ jsonrpc: '2.0', id: requestId++, method: 'tools/list' });
+  console.log('tools/list result:', result);
+  if (result && result.result && result.result.tools) {
+    tools = result.result.tools;
+    renderToolList();
+    addLog(`已加载 ${tools.length} 个工具`, 'event');
+  } else {
+    addLog('加载工具失败，请检查返回数据: ' + JSON.stringify(result), 'error');
+  }
+}
+
+function renderToolList() {
+  const container = document.getElementById('toolList');
+  if (tools.length === 0) {
+    container.innerHTML = '<div class="empty-state">没有可用工具</div>';
+    return;
+  }
+  // 按前缀分组
+  const groups = {};
+  tools.forEach(tool => {
+    const prefix = tool.name.split('_')[0] || 'other';
+    if (!groups[prefix]) groups[prefix] = [];
+    groups[prefix].push(tool);
+  });
+  let html = '';
+  for (const [group, items] of Object.entries(groups)) {
+    html += `<div class="tool-group"><div class="tool-group-title">${group}</div>`;
+    items.forEach(tool => {
+      html += `<div class="tool-item" data-name="${tool.name}" onclick="selectTool('${tool.name}')">${tool.name}</div>`;
+    });
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+// 选择工具
+function selectTool(name) {
+  currentTool = tools.find(t => t.name === name);
+  if (!currentTool) return;
+  // 更新 UI
+  document.querySelectorAll('.tool-item').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.tool-item[data-name="${name}"]`)?.classList.add('active');
+  document.getElementById('currentToolName').textContent = name;
+  document.getElementById('btnSend').disabled = false;
+  renderParams();
+}
+
+// 渲染参数表单
+function renderParams() {
+  const container = document.getElementById('paramsContainer');
+  if (!currentTool || !currentTool.inputSchema) {
+    container.innerHTML = '<div class="empty-state">该工具无参数</div>';
+    return;
+  }
+  const schema = currentTool.inputSchema;
+  const props = schema.properties || {};
+  const required = schema.required || [];
+  if (Object.keys(props).length === 0) {
+    container.innerHTML = '<div class="empty-state">该工具无参数</div>';
+    return;
+  }
+  let html = `<div style="margin-bottom:15px;color:#6c7086;font-size:12px;">${currentTool.description || ''}</div>`;
+  for (const [name, prop] of Object.entries(props)) {
+    const isRequired = required.includes(name);
+    const type = prop.type || 'string';
+    const enumVals = prop.enum;
+    html += `<div class="param-item">
+      <div class="param-label">
+        <span class="param-name">${name}</span>
+        <span class="${isRequired ? 'param-required' : 'param-optional'}">${isRequired ? '*必填' : '可选'}</span>
+        <span class="param-type">${type}</span>
+      </div>
+      ${prop.description ? `<div class="param-desc">${prop.description}</div>` : ''}`;
+    if (enumVals) {
+      html += `<select class="param-input" data-param="${name}" data-type="${type}">
+        <option value="">-- 选择 --</option>
+        ${enumVals.map(v => `<option value="${v}">${v}</option>`).join('')}
+      </select>`;
+    } else if (type === 'array' || type === 'object') {
+      html += `<textarea class="param-input textarea" data-param="${name}" data-type="${type}" placeholder='JSON 格式'></textarea>`;
+    } else if (type === 'boolean') {
+      html += `<select class="param-input" data-param="${name}" data-type="boolean">
+        <option value="">-- 选择 --</option>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>`;
+    } else if (type === 'integer' || type === 'number') {
+      html += `<input type="number" class="param-input" data-param="${name}" data-type="${type}" placeholder="${prop.default !== undefined ? '默认: ' + prop.default : ''}">`;
+    } else {
+      html += `<input type="text" class="param-input" data-param="${name}" data-type="${type}" placeholder="${prop.default !== undefined ? '默认: ' + prop.default : ''}">`;
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+// 发送工具调用
+function sendToolCall() {
+  if (!currentTool) return;
+  const args = {};
+  document.querySelectorAll('#paramsContainer .param-input').forEach(el => {
+    const name = el.dataset.param;
+    const type = el.dataset.type;
+    let value = el.value.trim();
+    if (!value) return;
+    if (type === 'integer') {
+      args[name] = parseInt(value);
+    } else if (type === 'number') {
+      args[name] = parseFloat(value);
+    } else if (type === 'boolean') {
+      args[name] = value === 'true';
+    } else if (type === 'array' || type === 'object') {
+      try { args[name] = JSON.parse(value); } catch { args[name] = value; }
+    } else {
+      args[name] = value;
+    }
+  });
+  sendRequest({
+    jsonrpc: '2.0',
+    id: requestId++,
+    method: 'tools/call',
+    params: { name: currentTool.name, arguments: args }
+  });
+}
+</script>

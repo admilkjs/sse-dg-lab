@@ -7,6 +7,7 @@ import type { ToolManager } from "../tool-manager";
 import { createToolResult, createToolError } from "../tool-manager";
 import type { SessionManager } from "../session-manager";
 import type { DGLabWSServer } from "../ws-server";
+import { getWaveformStorage } from "./waveform-tools";
 
 /** 强度模式类型 */
 type StrengthMode = "increase" | "decrease" | "set";
@@ -200,8 +201,10 @@ export function registerControlTools(
   toolManager.registerTool(
     "dg_send_waveform",
     `发送波形数据到设备，控制输出模式。必须在boundToApp为true后才能使用。
-波形数据格式：每项为16字符HEX字符串（8字节），最多100项。
-可配合dg_get_waveform获取已保存的波形hexWaveforms数组直接使用。
+支持两种方式：
+1. 直接提供waveforms数组（每项为16字符HEX字符串，最多100项）
+2. 提供waveformName引用已保存的波形（通过dg_parse_waveform保存）
+两种方式二选一，如果同时提供则优先使用waveforms。
 波形会按顺序播放，播放完毕后停止。`,
     {
       type: "object",
@@ -212,10 +215,14 @@ export function registerControlTools(
           type: "array",
           items: { type: "string" },
           maxItems: 100,
-          description: "波形数据数组，每项为8字节HEX字符串（16个十六进制字符）",
+          description: "波形数据数组，每项为8字节HEX字符串（16个十六进制字符）。与waveformName二选一",
+        },
+        waveformName: {
+          type: "string",
+          description: "已保存的波形名称（通过dg_parse_waveform保存）。与waveforms二选一",
         },
       },
-      required: ["deviceId", "channel", "waveforms"],
+      required: ["deviceId", "channel"],
     },
     async (params) => {
       // 验证 deviceId
@@ -228,10 +235,33 @@ export function registerControlTools(
       if ("error" in channelResult) return createToolError(channelResult.error);
       const channel = channelResult.channel;
 
-      // 验证 waveforms
-      const waveformsResult = validateWaveforms(params.waveforms);
-      if ("error" in waveformsResult) return createToolError(waveformsResult.error);
-      const waveforms = waveformsResult.waveforms;
+      // 获取波形数据
+      const rawWaveforms = params.waveforms as string[] | undefined;
+      const waveformName = params.waveformName as string | undefined;
+
+      // 验证参数：必须提供 waveforms 或 waveformName 之一
+      if (!rawWaveforms && !waveformName) {
+        return createToolError("必须提供 waveforms 或 waveformName 参数之一");
+      }
+
+      let waveforms: string[];
+
+      if (rawWaveforms) {
+        // 使用直接提供的波形数据
+        const waveformsResult = validateWaveforms(rawWaveforms);
+        if ("error" in waveformsResult) return createToolError(waveformsResult.error);
+        waveforms = waveformsResult.waveforms;
+      } else {
+        // 从存储中获取波形
+        const storage = getWaveformStorage();
+        const storedWaveform = storage.get(waveformName!);
+        
+        if (!storedWaveform) {
+          return createToolError(`波形不存在: ${waveformName}`);
+        }
+        
+        waveforms = storedWaveform.hexWaveforms;
+      }
 
       // 检查连接
       if (!session.clientId) {
@@ -259,6 +289,7 @@ export function registerControlTools(
           deviceId: session.deviceId,
           channel,
           waveformCount: waveforms.length,
+          source: rawWaveforms ? "direct" : `waveform:${waveformName}`,
         })
       );
     }

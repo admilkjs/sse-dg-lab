@@ -50,6 +50,10 @@ export interface WSServerOptions {
   onFeedback?: (controllerId: string, index: number) => void;
   /** 绑定变化回调 */
   onBindChange?: (controllerId: string, appId: string | null) => void;
+  /** 控制器断开回调 */
+  onControllerDisconnect?: (controllerId: string) => void;
+  /** APP 断开回调 */
+  onAppDisconnect?: (appId: string) => void;
 }
 
 /**
@@ -220,7 +224,9 @@ export class DGLabWSServer {
       const successMsg: DGLabMessage = { type: "bind", clientId: controllerId, targetId: appId, message: "200" };
       if (controllerClient) this.send(controllerClient.ws, successMsg);
       if (appClient) this.send(appClient.ws, successMsg);
-      this.options.onBindChange(controllerId, appId);
+      if (this.options.onBindChange) {
+        this.options.onBindChange(controllerId, appId);
+      }
       console.log(`[WS 服务器] 已绑定: ${controllerId} <-> ${appId}`);
     }
   }
@@ -233,7 +239,7 @@ export class DGLabWSServer {
       const parsed = this.parseStrengthMessage(message);
       if (parsed) {
         const client = this.clients.get(clientId);
-        if (client?.boundTo) {
+        if (client?.boundTo && this.options.onStrengthUpdate) {
           this.options.onStrengthUpdate(client.boundTo, parsed.strengthA, parsed.strengthB, parsed.limitA, parsed.limitB);
         }
         this.forwardMessage(clientId, data);
@@ -245,7 +251,9 @@ export class DGLabWSServer {
       const index = parseInt(message.substring(9));
       if (!isNaN(index)) {
         const client = this.clients.get(clientId);
-        if (client?.boundTo) this.options.onFeedback(client.boundTo, index);
+        if (client?.boundTo && this.options.onFeedback) {
+          this.options.onFeedback(client.boundTo, index);
+        }
       }
       this.forwardMessage(clientId, data);
       return;
@@ -280,6 +288,7 @@ export class DGLabWSServer {
     const client = this.clients.get(clientId);
     if (!client) return;
 
+    // 清理该客户端的波形定时器
     for (const [key, timer] of this.waveformTimers.entries()) {
       if (key.startsWith(clientId + "-")) {
         clearInterval(timer.timerId);
@@ -287,16 +296,63 @@ export class DGLabWSServer {
       }
     }
 
-    if (client.boundTo) {
-      const partner = this.clients.get(client.boundTo);
-      if (partner) {
-        this.send(partner.ws, { type: "break", clientId: client.boundTo, targetId: clientId, message: "209" });
-        partner.ws.close();
-        partner.boundTo = null;
+    if (client.type === "app") {
+      // APP 断开处理
+      // 查找所有绑定到该 APP 的控制器
+      for (const [controllerId, appId] of this.relations.entries()) {
+        if (appId === clientId) {
+          const controller = this.clients.get(controllerId);
+          if (controller) {
+            // 通知控制器 APP 已断开
+            this.send(controller.ws, { 
+              type: "break", 
+              clientId: controllerId, 
+              targetId: clientId, 
+              message: "209" 
+            });
+            controller.boundTo = null;
+          }
+          // 清理绑定关系
+          this.relations.delete(controllerId);
+          // 触发绑定变化回调
+          if (this.options.onBindChange) {
+            this.options.onBindChange(controllerId, null);
+          }
+        }
       }
-      this.relations.delete(clientId);
-      this.relations.delete(client.boundTo);
-      this.options.onBindChange(client.type === "controller" ? clientId : client.boundTo, null);
+      // 触发 APP 断开回调
+      if (this.options.onAppDisconnect) {
+        this.options.onAppDisconnect(clientId);
+      }
+    } else if (client.type === "controller") {
+      // 控制器断开处理
+      if (client.boundTo) {
+        const partner = this.clients.get(client.boundTo);
+        if (partner) {
+          this.send(partner.ws, { type: "break", clientId: client.boundTo, targetId: clientId, message: "209" });
+          partner.boundTo = null;
+        }
+        this.relations.delete(clientId);
+        // 触发绑定变化回调
+        if (this.options.onBindChange) {
+          this.options.onBindChange(clientId, null);
+        }
+      }
+      // 触发控制器断开回调
+      if (this.options.onControllerDisconnect) {
+        this.options.onControllerDisconnect(clientId);
+      }
+    } else {
+      // 未知类型客户端断开，清理可能的绑定关系
+      if (client.boundTo) {
+        const partner = this.clients.get(client.boundTo);
+        if (partner) {
+          this.send(partner.ws, { type: "break", clientId: client.boundTo, targetId: clientId, message: "209" });
+          partner.boundTo = null;
+        }
+        this.relations.delete(clientId);
+        this.relations.delete(client.boundTo);
+      }
     }
 
     this.clients.delete(clientId);
@@ -385,6 +441,67 @@ export class DGLabWSServer {
     const client = this.clients.get(controllerId);
     if (!client || client.type !== "controller") return false;
     this.handleClose(controllerId);
+    return true;
+  }
+
+  /**
+   * 断开指定控制器的连接
+   * @param controllerId - 控制器 ID
+   * @returns 是否成功断开
+   */
+  disconnectController(controllerId: string): boolean {
+    const client = this.clients.get(controllerId);
+    if (!client) {
+      return false;
+    }
+
+    // 清理该控制器的波形定时器
+    for (const [key, timer] of this.waveformTimers.entries()) {
+      if (key.startsWith(controllerId + "-")) {
+        clearInterval(timer.timerId);
+        this.waveformTimers.delete(key);
+      }
+    }
+
+    // 如果有绑定的 APP，先解绑并通知
+    if (client.boundTo) {
+      const appClient = this.clients.get(client.boundTo);
+      if (appClient && appClient.ws.readyState === WebSocket.OPEN) {
+        // 通知 APP 控制器已断开
+        this.send(appClient.ws, {
+          type: "break",
+          clientId: controllerId,
+          targetId: client.boundTo,
+          message: "209"
+        });
+      }
+      
+      // 清理绑定关系
+      this.relations.delete(controllerId);
+      if (appClient) {
+        appClient.boundTo = null;
+      }
+      
+      // 触发绑定变化回调
+      if (this.options.onBindChange) {
+        this.options.onBindChange(controllerId, null);
+      }
+    }
+
+    // 关闭 WebSocket 连接（如果是真实连接）
+    if (client.ws.readyState === WebSocket.OPEN) {
+      client.ws.close(1000, "Disconnected by user");
+    }
+
+    // 从 Map 中移除
+    this.clients.delete(controllerId);
+
+    // 触发控制器断开回调
+    if (this.options.onControllerDisconnect) {
+      this.options.onControllerDisconnect(controllerId);
+    }
+
+    console.log(`[WS 服务器] 控制器已断开: ${controllerId}`);
     return true;
   }
 

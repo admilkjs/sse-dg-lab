@@ -288,10 +288,17 @@ export function registerDeviceTools(
       for (const id of sessionsToDelete) {
         const session = sessionManager.getSession(id);
         if (session) {
+          // 先断开 WebSocket 连接
+          if (session.clientId) {
+            wsServer.disconnectController(session.clientId);
+          }
+          
           deletedDevices.push({
             deviceId: session.deviceId,
             alias: session.alias,
           });
+          
+          // 然后删除 session
           sessionManager.deleteSession(id);
         }
       }

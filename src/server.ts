@@ -129,13 +129,21 @@ export function createServer(config: ServerConfig): MCPServer {
     },
 
     async stop(): Promise<void> {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
+        // 检查服务器是否正在监听
         if (httpServer && httpServer.listening) {
           httpServer.close((err) => {
-            if (err) reject(err);
-            else resolve();
+            if (err) {
+              // 记录错误但不中断关闭流程
+              console.error("[服务器] 关闭时出错:", err);
+            } else {
+              console.log("[服务器] 已停止");
+            }
+            resolve();
           });
         } else {
+          // 服务器未启动或已关闭，直接 resolve
+          console.log("[服务器] 未启动或已关闭");
           resolve();
         }
       });

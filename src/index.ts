@@ -67,6 +67,32 @@ async function main() {
         });
       }
     },
+    onControllerDisconnect: (controllerId) => {
+      console.log(`[WS] 控制器断开: ${controllerId}`);
+      // 更新会话管理器中的连接状态
+      const session = sessionManager.getSessionByClientId(controllerId);
+      if (session) {
+        sessionManager.updateConnectionState(session.deviceId, {
+          connected: false,
+          boundToApp: false,
+          clientId: null,
+          targetId: null,
+        });
+      }
+    },
+    onAppDisconnect: (appId) => {
+      console.log(`[WS] APP 断开: ${appId}`);
+      // 查找所有绑定到该 APP 的 session 并更新状态
+      const sessions = sessionManager.listSessions();
+      for (const session of sessions) {
+        if (session.targetId === appId) {
+          sessionManager.updateConnectionState(session.deviceId, {
+            boundToApp: false,
+            targetId: null,
+          });
+        }
+      }
+    },
   });
 
   // 初始化波形存储（持久化到磁盘以便使用）

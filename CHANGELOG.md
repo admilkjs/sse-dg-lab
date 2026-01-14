@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.0...v1.1.1) (2026-01-14)
+
+
+### 🐛 错误修复
+
+* 修复 npm 自动发布工作流 ([6d1dcd5](https://github.com/admilkjs/sse-dg-lab/commit/6d1dcd5840cabc82291cc0fe9ec0ea1504571031))
+
 ## [1.1.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.0.3...v1.1.0) (2026-01-14)
 
 

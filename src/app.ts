@@ -144,12 +144,9 @@ function createWSServer(config: ServerConfig, sessionManager: SessionManager): D
       console.log(`[WS] 控制器断开: ${controllerId}`);
       const session = sessionManager.getSessionByClientId(controllerId);
       if (session) {
-        sessionManager.updateConnectionState(session.deviceId, {
-          connected: false,
-          boundToApp: false,
-          clientId: null,
-          targetId: null,
-        });
+        // 使用 handleDisconnection 处理断开逻辑
+        // 这会根据绑定状态决定是保留会话等待重连还是立即删除
+        sessionManager.handleDisconnection(session.deviceId);
       }
     },
     onAppDisconnect: (appId) => {
@@ -157,6 +154,8 @@ function createWSServer(config: ServerConfig, sessionManager: SessionManager): D
       const sessions = sessionManager.listSessions();
       for (const session of sessions) {
         if (session.targetId === appId) {
+          // APP 断开时，更新状态
+          // 注意：控制器可能还在连接，所以只更新 boundToApp 和 targetId
           sessionManager.updateConnectionState(session.deviceId, {
             boundToApp: false,
             targetId: null,

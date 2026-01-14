@@ -515,13 +515,27 @@ export function registerControlTools(
   toolManager.registerTool(
     "dg_start_continuous_playback",
     `启动持续播放模式，循环发送波形数据直到手动停止。
-与dg_send_waveform不同，持续播放会自动循环发送波形，适合需要持续输出的场景。
-支持两种方式提供波形：
-1. 直接提供waveforms数组
-2. 提供waveformName引用已保存的波形
-可选参数：
-- interval: 发送间隔（毫秒），默认100ms
-- batchSize: 每次发送的波形数量，默认5`,
+
+功能：
+- 自动循环发送波形，适合需要持续输出的场景
+- 使用动态等待机制，根据实际播放时长和发送耗时计算等待时间
+- 每个 hexWaveform 代表 100ms 的播放时间
+
+参数：
+- deviceId 或 alias: 设备标识（二选一，deviceId优先）
+- channel: A或B通道
+- waveforms 或 waveformName: 波形数据来源（二选一）
+- batchSize: 每次发送的波形数量，默认5（播放时长 = batchSize × 100ms）
+- bufferRatio: 缓冲比例（0.5-1.0），默认0.9，用于计算等待时间
+
+时序机制：
+- 播放时长 = batchSize × 100ms
+- 等待时间 = 播放时长 × bufferRatio - 发送耗时
+- 最小等待时间 = 10ms
+
+与 dg_send_waveform 的区别：
+- dg_send_waveform: 一次性发送，播放完毕后停止
+- dg_start_continuous_playback: 循环发送，直到手动停止`,
     {
       type: "object",
       properties: {
@@ -538,17 +552,17 @@ export function registerControlTools(
           type: "string",
           description: "已保存的波形名称。与waveforms二选一",
         },
-        interval: {
-          type: "number",
-          minimum: 50,
-          maximum: 5000,
-          description: "发送间隔（毫秒），默认100",
-        },
         batchSize: {
           type: "number",
           minimum: 1,
           maximum: 20,
-          description: "每次发送的波形数量，默认5",
+          description: "每次发送的波形数量，默认5（播放时长 = batchSize × 100ms）",
+        },
+        bufferRatio: {
+          type: "number",
+          minimum: 0.5,
+          maximum: 1.0,
+          description: "缓冲比例（0.5-1.0），默认0.9，用于计算等待时间",
         },
       },
       required: ["channel"],
@@ -601,16 +615,16 @@ export function registerControlTools(
       }
 
       // 获取可选参数
-      const interval = typeof params.interval === "number" ? params.interval : 100;
       const batchSize = typeof params.batchSize === "number" ? params.batchSize : 5;
+      const bufferRatio = typeof params.bufferRatio === "number" ? params.bufferRatio : 0.9;
 
       // 启动持续播放
       const success = wsServer.startContinuousPlayback(
         session.clientId,
         channel,
         waveforms,
-        interval,
-        batchSize
+        batchSize,
+        bufferRatio
       );
 
       if (!success) {
@@ -619,14 +633,18 @@ export function registerControlTools(
 
       sessionManager.touchSession(session.deviceId);
 
+      // 计算播放时长
+      const playbackDuration = batchSize * 100;
+
       return createToolResult(
         JSON.stringify({
           success: true,
           deviceId: session.deviceId,
           channel,
           waveformCount: waveforms.length,
-          interval,
           batchSize,
+          bufferRatio,
+          playbackDuration,
           source: rawWaveforms ? "direct" : `waveform:${waveformName}`,
         })
       );
@@ -691,7 +709,14 @@ export function registerControlTools(
   toolManager.registerTool(
     "dg_get_playback_status",
     `获取设备的持续播放状态。
-返回A和B通道的播放状态，包括是否正在播放、波形数量、发送间隔等信息。`,
+
+返回 A 和 B 通道的播放状态，包括：
+- playing: 是否正在播放
+- waveformCount: 波形数量
+- batchSize: 每次发送的波形数量
+- bufferRatio: 缓冲比例
+- playbackDuration: 播放时长（毫秒）
+- stats: 统计信息（发送次数、平均耗时）`,
     {
       type: "object",
       properties: {
@@ -725,14 +750,18 @@ export function registerControlTools(
           channelA: statusA ? {
             playing: statusA.active,
             waveformCount: statusA.waveformCount,
-            interval: statusA.interval,
             batchSize: statusA.batchSize,
+            bufferRatio: statusA.bufferRatio,
+            playbackDuration: statusA.playbackDuration,
+            stats: statusA.stats,
           } : { playing: false },
           channelB: statusB ? {
             playing: statusB.active,
             waveformCount: statusB.waveformCount,
-            interval: statusB.interval,
             batchSize: statusB.batchSize,
+            bufferRatio: statusB.bufferRatio,
+            playbackDuration: statusB.playbackDuration,
+            stats: statusB.stats,
           } : { playing: false },
         })
       );

@@ -48,14 +48,25 @@ interface ContinuousPlaybackState {
   waveforms: string[];
   /** 当前播放索引 */
   currentIndex: number;
-  /** 发送间隔（毫秒） */
-  interval: number;
   /** 每次发送的波形数量 */
   batchSize: number;
-  /** 定时器 ID */
-  timerId: ReturnType<typeof setInterval> | null;
+  /** 缓冲比例（0.5-1.0），用于计算等待时间 */
+  bufferRatio: number;
+  /** 播放时长（毫秒），= batchSize × 100 */
+  playbackDuration: number;
+  /** 定时器 ID（使用 setTimeout） */
+  timerId: ReturnType<typeof setTimeout> | null;
   /** 是否正在播放 */
   active: boolean;
+  /** 统计信息 */
+  stats: {
+    /** 发送次数 */
+    sendCount: number;
+    /** 总发送耗时（毫秒） */
+    totalElapsedTime: number;
+    /** 上次发送时间戳 */
+    lastSendTime: number;
+  };
 }
 
 /** WebSocket 服务器选项 */
@@ -152,10 +163,10 @@ export class DGLabWSServer {
       clearInterval(timer.timerId);
     }
     this.waveformTimers.clear();
-    // 清理所有持续播放
+    // 清理所有持续播放（使用 clearTimeout）
     for (const playback of this.continuousPlaybacks.values()) {
       if (playback.timerId) {
-        clearInterval(playback.timerId);
+        clearTimeout(playback.timerId);
       }
     }
     this.continuousPlaybacks.clear();
@@ -325,11 +336,11 @@ export class DGLabWSServer {
       }
     }
 
-    // 清理该客户端的持续播放
+    // 清理该客户端的持续播放（使用 clearTimeout）
     for (const [key, playback] of this.continuousPlaybacks.entries()) {
       if (playback.controllerId === clientId) {
         if (playback.timerId) {
-          clearInterval(playback.timerId);
+          clearTimeout(playback.timerId);
         }
         this.continuousPlaybacks.delete(key);
         console.log(`[WS 服务器] 已停止持续播放: ${key}`);
@@ -503,13 +514,13 @@ export class DGLabWSServer {
       }
     }
 
-    // 清理该控制器的持续播放
+    // 清理该控制器的持续播放（使用 clearTimeout）
     for (const channel of ["A", "B"] as const) {
       const key = `${controllerId}-${channel}`;
       const state = this.continuousPlaybacks.get(key);
       if (state) {
         if (state.timerId) {
-          clearInterval(state.timerId);
+          clearTimeout(state.timerId);
         }
         this.continuousPlaybacks.delete(key);
         console.log(`[WS 服务器] 已停止持续播放: ${key}`);
@@ -599,21 +610,21 @@ export class DGLabWSServer {
    * 启动持续播放
    * 
    * 循环发送波形数据到指定通道，直到手动停止。
-   * 每次发送一批波形，按间隔循环发送。
+   * 使用动态等待机制，根据实际播放时长和发送耗时计算等待时间。
    * 
    * @param controllerId - 控制器 ID
    * @param channel - 目标通道 A 或 B
    * @param waveforms - 要循环播放的波形数据
-   * @param interval - 发送间隔（毫秒），默认 100ms
    * @param batchSize - 每次发送的波形数量，默认 5
+   * @param bufferRatio - 缓冲比例（0.5-1.0），默认 0.9，用于计算等待时间
    * @returns 是否成功启动
    */
   startContinuousPlayback(
     controllerId: string,
     channel: "A" | "B",
     waveforms: string[],
-    interval: number = 100,
-    batchSize: number = 5
+    batchSize: number = 5,
+    bufferRatio: number = 0.9
   ): boolean {
     // 检查控制器是否已绑定 APP
     if (!this.isControllerBound(controllerId)) {
@@ -634,43 +645,93 @@ export class DGLabWSServer {
       this.stopContinuousPlayback(controllerId, channel);
     }
 
+    // 验证 bufferRatio 范围（0.5-1.0），无效值使用默认值 0.9
+    const validBufferRatio = (bufferRatio >= 0.5 && bufferRatio <= 1.0) ? bufferRatio : 0.9;
+
+    // 计算播放时长：每个 hexWaveform = 100ms
+    const playbackDuration = batchSize * 100;
+
     // 创建持续播放状态
     const state: ContinuousPlaybackState = {
       controllerId,
       channel,
       waveforms,
       currentIndex: 0,
-      interval,
       batchSize,
+      bufferRatio: validBufferRatio,
+      playbackDuration,
       timerId: null,
       active: true,
+      stats: {
+        sendCount: 0,
+        totalElapsedTime: 0,
+        lastSendTime: 0,
+      },
     };
 
-    // 启动定时器循环发送波形
-    state.timerId = setInterval(() => {
-      if (!state.active) {
-        return;
-      }
-
-      // 获取当前批次的波形
-      const batch: string[] = [];
-      for (let i = 0; i < state.batchSize; i++) {
-        batch.push(state.waveforms[state.currentIndex]!);
-        state.currentIndex = (state.currentIndex + 1) % state.waveforms.length;
-      }
-
-      // 发送波形
-      const success = this.sendWaveform(controllerId, channel, batch);
-      if (!success) {
-        // 发送失败，停止播放
-        console.log(`[WS 服务器] 持续播放发送失败，停止播放: ${key}`);
-        this.stopContinuousPlayback(controllerId, channel);
-      }
-    }, interval);
-
     this.continuousPlaybacks.set(key, state);
-    console.log(`[WS 服务器] 已启动持续播放: ${key}，波形数: ${waveforms.length}，间隔: ${interval}ms`);
+    console.log(`[WS 服务器] 已启动持续播放: ${key}，波形数: ${waveforms.length}，批次大小: ${batchSize}，播放时长: ${playbackDuration}ms，缓冲比例: ${validBufferRatio}`);
+
+    // 使用递归 setTimeout 启动播放
+    this.scheduleSend(state);
     return true;
+  }
+
+  /**
+   * 调度发送波形（内部方法）
+   * 
+   * 使用递归 setTimeout 实现动态等待机制：
+   * 1. 记录发送开始时间
+   * 2. 发送波形批次
+   * 3. 计算发送耗时
+   * 4. 计算等待时间 = 播放时长 × 缓冲比例 - 发送耗时
+   * 5. 调度下次发送
+   * 
+   * @param state - 持续播放状态
+   */
+  private scheduleSend(state: ContinuousPlaybackState): void {
+    if (!state.active) {
+      return;
+    }
+
+    // 记录发送开始时间
+    const startTime = Date.now();
+
+    // 获取当前批次的波形
+    const batch: string[] = [];
+    for (let i = 0; i < state.batchSize; i++) {
+      batch.push(state.waveforms[state.currentIndex]!);
+      state.currentIndex = (state.currentIndex + 1) % state.waveforms.length;
+    }
+
+    // 发送波形
+    const success = this.sendWaveform(state.controllerId, state.channel, batch);
+    if (!success) {
+      // 发送失败，停止播放
+      console.log(`[WS 服务器] 持续播放发送失败，停止播放: ${state.controllerId}-${state.channel}`);
+      this.stopContinuousPlayback(state.controllerId, state.channel);
+      return;
+    }
+
+    // 计算发送耗时
+    const elapsedTime = Date.now() - startTime;
+
+    // 更新统计信息
+    state.stats.sendCount++;
+    state.stats.totalElapsedTime += elapsedTime;
+    state.stats.lastSendTime = startTime;
+
+    // 计算等待时间
+    const targetWaitTime = state.playbackDuration * state.bufferRatio - elapsedTime;
+    const actualWaitTime = Math.max(10, targetWaitTime); // 最小 10ms
+
+    // 记录性能警告
+    if (targetWaitTime < 0) {
+      console.warn(`[WS 服务器] 持续播放发送太慢: 耗时 ${elapsedTime}ms > 目标时间 ${state.playbackDuration * state.bufferRatio}ms`);
+    }
+
+    // 调度下次发送
+    state.timerId = setTimeout(() => this.scheduleSend(state), actualWaitTime);
   }
 
   /**
@@ -691,10 +752,16 @@ export class DGLabWSServer {
       return false;
     }
 
+    // 记录统计信息
+    if (state.stats.sendCount > 0) {
+      const avgElapsedTime = state.stats.totalElapsedTime / state.stats.sendCount;
+      console.log(`[WS 服务器] 持续播放统计: ${key}，发送次数: ${state.stats.sendCount}，平均耗时: ${avgElapsedTime.toFixed(2)}ms`);
+    }
+
     // 停止定时器
     state.active = false;
     if (state.timerId) {
-      clearInterval(state.timerId);
+      clearTimeout(state.timerId);
       state.timerId = null;
     }
 
@@ -729,18 +796,30 @@ export class DGLabWSServer {
    */
   getContinuousPlaybackState(controllerId: string, channel: "A" | "B"): {
     waveformCount: number;
-    interval: number;
     batchSize: number;
+    bufferRatio: number;
+    playbackDuration: number;
     active: boolean;
+    stats: {
+      sendCount: number;
+      totalElapsedTime: number;
+      avgElapsedTime: number;
+    };
   } | null {
     const key = `${controllerId}-${channel}`;
     const state = this.continuousPlaybacks.get(key);
     if (!state) return null;
     return {
       waveformCount: state.waveforms.length,
-      interval: state.interval,
       batchSize: state.batchSize,
+      bufferRatio: state.bufferRatio,
+      playbackDuration: state.playbackDuration,
       active: state.active,
+      stats: {
+        sendCount: state.stats.sendCount,
+        totalElapsedTime: state.stats.totalElapsedTime,
+        avgElapsedTime: state.stats.sendCount > 0 ? state.stats.totalElapsedTime / state.stats.sendCount : 0,
+      },
     };
   }
 

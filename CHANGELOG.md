@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.2...v1.1.3) (2026-01-14)
+
+
+### 🐛 错误修复
+
+* 暂时移除工作流中的 typecheck 步骤 ([dab92d3](https://github.com/admilkjs/sse-dg-lab/commit/dab92d377e13aafff86167e5833939b43c488f7d))
+
 ## [1.1.2](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.1...v1.1.2) (2026-01-14)
 
 

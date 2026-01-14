@@ -1,35 +1,18 @@
 /**
  * @fileoverview 配置管理模块
  * 
- * 这个模块负责加载和验证服务器配置。支持通过 .env 文件或环境变量来配置，
+ * 这个模块负责加载和验证服务器配置。直接从环境变量读取配置，
  * 对于未设置的选项会使用合理的默认值。
  * 
  * 主要功能：
- * - 从 .env 文件加载配置
+ * - 从环境变量加载配置
  * - 验证配置值的有效性
  * - 提供 IP 地址检测（本地和公网）
  * - 单例模式确保配置一致性
  */
 
-import * as dotenv from "dotenv";
-import * as path from "path";
 import * as os from "os";
 import { ConfigError, ErrorCode } from "./errors";
-
-// 加载 .env 文件（显式指定路径，确保从正确位置加载）
-const envPath = path.resolve(process.cwd(), ".env");
-const dotenvResult = dotenv.config({ path: envPath });
-
-if (dotenvResult.error) {
-  console.log(`[配置] .env 文件加载失败: ${dotenvResult.error.message}`);
-  console.log(`[配置] 尝试加载路径: ${envPath}`);
-} else {
-  console.log(`[配置] .env 文件已加载: ${envPath}`);
-}
-
-// 立即打印 PUBLIC_IP 的值，方便调试
-console.log(`[配置] PUBLIC_IP 环境变量: "${process.env.PUBLIC_IP || '(未设置)'}"`);
-
 /**
  * 服务器配置
  * 

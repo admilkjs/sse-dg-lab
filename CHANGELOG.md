@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.2](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.1...v1.1.2) (2026-01-14)
+
+
+### 🐛 错误修复
+
+* 添加 ESLint 9 配置文件 ([7301621](https://github.com/admilkjs/sse-dg-lab/commit/73016213881febeaf48b36f7ad9e2345d96ad0d5))
+* 移除工作流中的 working-directory 配置 ([21e4ae1](https://github.com/admilkjs/sse-dg-lab/commit/21e4ae18a43fc9576e0eaa7443981043948ad723))
+
+
+### 🔧 其他更新
+
+* release 1.1.1 ([22b9e3d](https://github.com/admilkjs/sse-dg-lab/commit/22b9e3d518c1f6fd0934755fbffca47c586bf5fb))
+* release 1.1.1 ([1db74a7](https://github.com/admilkjs/sse-dg-lab/commit/1db74a7436278fac93bfaed17f322c50e36b357a))
+
 ## [1.1.1](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.0...v1.1.1) (2026-01-14)
 
 

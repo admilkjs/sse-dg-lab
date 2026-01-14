@@ -67,7 +67,7 @@ PORT=8080 npx dg-lab-mcp-server
       "command": "npx",
       "args": ["dg-lab-mcp-server"],
       "env": {
-        "PUBLIC_IP": "162.14.116.58",
+        "PUBLIC_IP": "your.public.ip",
         "PORT": "3323",
         "CONNECTION_TIMEOUT_MINUTES": "10"
       }

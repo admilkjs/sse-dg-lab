@@ -173,3 +173,7 @@ src/
 ## 许可证
 
 MIT
+
+## 声明
+
+本项目基于 [DG-LAB 开源协议](https://github.com/DG-LAB-OPENSOURCE/DG-LAB-OPENSOURCE) 实现设备通信功能。DG-LAB 开源协议仅供爱好者自由使用设备，未经授权请勿将相关内容用于任何商业用途。

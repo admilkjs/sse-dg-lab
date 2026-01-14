@@ -6,6 +6,20 @@
 ### 🐛 错误修复
 
 * 修复 npm 自动发布工作流 ([6d1dcd5](https://github.com/admilkjs/sse-dg-lab/commit/6d1dcd5840cabc82291cc0fe9ec0ea1504571031))
+* 移除工作流中的 working-directory 配置 ([21e4ae1](https://github.com/admilkjs/sse-dg-lab/commit/21e4ae18a43fc9576e0eaa7443981043948ad723))
+
+
+### 🔧 其他更新
+
+* release 1.1.1 ([37e4dc0](https://github.com/admilkjs/sse-dg-lab/commit/37e4dc0112b7f4d759b53b9996b46d7ef978aaf7))
+* release 1.1.1 ([0e2ec37](https://github.com/admilkjs/sse-dg-lab/commit/0e2ec3717c13ff1cc410f80899b727ddd74bf0cf))
+
+## [1.1.1](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.0...v1.1.1) (2026-01-14)
+
+
+### 🐛 错误修复
+
+* 修复 npm 自动发布工作流 ([6d1dcd5](https://github.com/admilkjs/sse-dg-lab/commit/6d1dcd5840cabc82291cc0fe9ec0ea1504571031))
 
 ## [1.1.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.0.3...v1.1.0) (2026-01-14)
 

@@ -2,16 +2,46 @@
   "name": "dg-lab-mcp-server",
   "version": "1.0.0",
   "description": "MCP SSE Server for DG-LAB device control",
-  "module": "src/index.ts",
   "type": "module",
-  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "dg-lab-mcp-server": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
+    "build": "node scripts/build.mjs",
+    "build:types": "tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "prepublishOnly": "npm run build",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:admilkjs/sse-dg-lab.git"
+  },
+  "homepage": "https://github.com/admilkjs/sse-dg-lab#readme",
+  "bugs": {
+    "url": "https://github.com/admilkjs/sse-dg-lab/issues"
+  },
+  "keywords": [
+    "mcp",
+    "sse",
+    "dg-lab",
+    "websocket",
+    "device-control"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -20,11 +50,10 @@
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
+    "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
-    "fast-check": "^4.5.3"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+    "fast-check": "^4.5.3",
+    "typescript": "^5.0.0"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

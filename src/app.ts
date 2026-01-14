@@ -55,9 +55,9 @@ export function createApp(): App {
     broadcastNotification(server, "notifications/tools/list_changed");
   });
 
-  // 创建会话管理器（仅内存，1 小时 TTL）
-  const sessionManager = new SessionManager();
-  console.log("[会话] 仅内存模式（1 小时 TTL）");
+  // 创建会话管理器（仅内存，配置化超时）
+  const sessionManager = new SessionManager(config.connectionTimeoutMinutes);
+  console.log(`[会话] 仅内存模式（连接超时: ${config.connectionTimeoutMinutes} 分钟，活跃超时: 1 小时）`);
 
   // 创建 WebSocket 服务器
   const wsServer = createWSServer(config, sessionManager);
@@ -131,6 +131,10 @@ function createWSServer(config: ServerConfig, sessionManager: SessionManager): D
           boundToApp: !!appId,
           targetId: appId,
         });
+        // 绑定 APP 时取消连接超时计时器
+        if (appId) {
+          sessionManager.onAppBound(session.deviceId);
+        }
       }
     },
     onControllerDisconnect: (controllerId) => {

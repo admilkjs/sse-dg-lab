@@ -53,6 +53,8 @@ export interface ServerConfig {
   heartbeatInterval: number;
   /** 设备过期超时（毫秒），超过这个时间不活跃的设备会被清理 */
   staleDeviceTimeout: number;
+  /** 连接超时时间（分钟），会话创建后在此时间内未绑定 APP 则自动销毁 */
+  connectionTimeoutMinutes: number;
 }
 
 /**
@@ -104,6 +106,7 @@ export function loadConfig(): ServerConfig {
     waveformStorePath: getEnvString("WAVEFORM_STORE_PATH", "./data/waveforms.json"),
     heartbeatInterval: getEnvNumber("HEARTBEAT_INTERVAL", 30000),
     staleDeviceTimeout: getEnvNumber("STALE_DEVICE_TIMEOUT", 3600000),
+    connectionTimeoutMinutes: getEnvNumber("CONNECTION_TIMEOUT_MINUTES", 5),
   };
 
   validateConfig(config);
@@ -167,6 +170,13 @@ function validateConfig(config: ServerConfig): void {
     throw new ConfigError(`设备过期超时无效: ${config.staleDeviceTimeout}，必须至少 60000ms`, {
       code: ErrorCode.CONFIG_LOAD_FAILED,
       context: { staleDeviceTimeout: config.staleDeviceTimeout },
+    });
+  }
+
+  if (config.connectionTimeoutMinutes < 1 || config.connectionTimeoutMinutes > 60) {
+    throw new ConfigError(`连接超时时间无效: ${config.connectionTimeoutMinutes}，必须在 1-60 分钟范围内`, {
+      code: ErrorCode.CONFIG_LOAD_FAILED,
+      context: { connectionTimeoutMinutes: config.connectionTimeoutMinutes },
     });
   }
 }

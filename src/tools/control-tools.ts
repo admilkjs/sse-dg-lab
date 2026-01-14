@@ -37,6 +37,47 @@ type StrengthMode = "increase" | "decrease" | "set";
 // ============================================================
 
 /**
+ * 解析设备标识
+ * 
+ * 支持通过 deviceId 或 alias 查找设备。
+ * deviceId 优先级高于 alias。
+ * 
+ * @param sessionManager - 会话管理器
+ * @param deviceId - 设备 ID（可选）
+ * @param alias - 设备别名（可选）
+ * @returns 解析结果，包含会话或错误信息
+ */
+function resolveDevice(
+  sessionManager: SessionManager,
+  deviceId?: string,
+  alias?: string
+): { error: string } | { session: NonNullable<ReturnType<SessionManager["getSession"]>> } {
+  // 必须提供 deviceId 或 alias 之一
+  if (!deviceId && !alias) {
+    return { error: "必须提供 deviceId 或 alias 参数之一" };
+  }
+
+  // deviceId 优先级高于 alias
+  if (deviceId) {
+    const session = sessionManager.getSession(deviceId);
+    if (!session) {
+      return { error: `设备不存在: ${deviceId}` };
+    }
+    return { session };
+  }
+
+  // 通过 alias 查找
+  const sessions = sessionManager.findByAlias(alias!);
+  if (sessions.length === 0) {
+    return { error: `未找到别名为 "${alias}" 的设备` };
+  }
+  if (sessions.length > 1) {
+    return { error: `别名 "${alias}" 匹配到多个设备 (${sessions.length} 个)，请使用 deviceId 指定` };
+  }
+  return { session: sessions[0] };
+}
+
+/**
  * 验证设备 ID 并获取对应的会话
  * 
  * @param sessionManager - 会话管理器实例
@@ -180,6 +221,7 @@ export function registerControlTools(
     "dg_set_strength",
     `设置设备通道强度。必须在boundToApp为true后才能使用。
 参数说明：
+- deviceId 或 alias: 设备标识（二选一，deviceId优先）
 - channel: A或B通道
 - mode: increase(增加)/decrease(减少)/set(直接设置)
 - value: 强度值0-200，但实际不能超过strengthLimit
@@ -187,18 +229,23 @@ export function registerControlTools(
     {
       type: "object",
       properties: {
-        deviceId: { type: "string", description: "设备ID" },
+        deviceId: { type: "string", description: "设备ID（与alias二选一，优先使用）" },
+        alias: { type: "string", description: "设备别名（与deviceId二选一）" },
         channel: { type: "string", enum: ["A", "B"], description: "通道" },
         mode: { type: "string", enum: ["increase", "decrease", "set"], description: "模式" },
         value: { type: "number", minimum: 0, maximum: 200, description: "强度值" },
       },
-      required: ["deviceId", "channel", "mode", "value"],
+      required: ["channel", "mode", "value"],
     },
     async (params) => {
-      // 参数验证链：依次验证各个参数
-      const deviceResult = validateDeviceId(sessionManager, params.deviceId as string);
+      // 使用 resolveDevice 支持 deviceId 和 alias
+      const deviceResult = resolveDevice(
+        sessionManager,
+        params.deviceId as string | undefined,
+        params.alias as string | undefined
+      );
       if ("error" in deviceResult) return createToolError(deviceResult.error);
-      const session = deviceResult.session!;
+      const session = deviceResult.session;
 
       const channelResult = validateChannel(params.channel as string);
       if ("error" in channelResult) return createToolError(channelResult.error);
@@ -260,7 +307,8 @@ export function registerControlTools(
     {
       type: "object",
       properties: {
-        deviceId: { type: "string", description: "设备ID" },
+        deviceId: { type: "string", description: "设备ID（与alias二选一，优先使用）" },
+        alias: { type: "string", description: "设备别名（与deviceId二选一）" },
         channel: { type: "string", enum: ["A", "B"], description: "通道" },
         waveforms: {
           type: "array",
@@ -273,13 +321,17 @@ export function registerControlTools(
           description: "已保存的波形名称（通过dg_parse_waveform保存）。与waveforms二选一",
         },
       },
-      required: ["deviceId", "channel"],
+      required: ["channel"],
     },
     async (params) => {
-      // 参数验证
-      const deviceResult = validateDeviceId(sessionManager, params.deviceId as string);
+      // 使用 resolveDevice 支持 deviceId 和 alias
+      const deviceResult = resolveDevice(
+        sessionManager,
+        params.deviceId as string | undefined,
+        params.alias as string | undefined
+      );
       if ("error" in deviceResult) return createToolError(deviceResult.error);
-      const session = deviceResult.session!;
+      const session = deviceResult.session;
 
       const channelResult = validateChannel(params.channel as string);
       if ("error" in channelResult) return createToolError(channelResult.error);
@@ -352,16 +404,21 @@ export function registerControlTools(
     {
       type: "object",
       properties: {
-        deviceId: { type: "string", description: "设备ID" },
+        deviceId: { type: "string", description: "设备ID（与alias二选一，优先使用）" },
+        alias: { type: "string", description: "设备别名（与deviceId二选一）" },
         channel: { type: "string", enum: ["A", "B"], description: "通道" },
       },
-      required: ["deviceId", "channel"],
+      required: ["channel"],
     },
     async (params) => {
-      // 参数验证
-      const deviceResult = validateDeviceId(sessionManager, params.deviceId as string);
+      // 使用 resolveDevice 支持 deviceId 和 alias
+      const deviceResult = resolveDevice(
+        sessionManager,
+        params.deviceId as string | undefined,
+        params.alias as string | undefined
+      );
       if ("error" in deviceResult) return createToolError(deviceResult.error);
-      const session = deviceResult.session!;
+      const session = deviceResult.session;
 
       const channelResult = validateChannel(params.channel as string);
       if ("error" in channelResult) return createToolError(channelResult.error);
@@ -408,15 +465,20 @@ export function registerControlTools(
     {
       type: "object",
       properties: {
-        deviceId: { type: "string", description: "设备ID" },
+        deviceId: { type: "string", description: "设备ID（与alias二选一，优先使用）" },
+        alias: { type: "string", description: "设备别名（与deviceId二选一）" },
       },
-      required: ["deviceId"],
+      required: [],
     },
     async (params) => {
-      // 参数验证
-      const deviceResult = validateDeviceId(sessionManager, params.deviceId as string);
+      // 使用 resolveDevice 支持 deviceId 和 alias
+      const deviceResult = resolveDevice(
+        sessionManager,
+        params.deviceId as string | undefined,
+        params.alias as string | undefined
+      );
       if ("error" in deviceResult) return createToolError(deviceResult.error);
-      const session = deviceResult.session!;
+      const session = deviceResult.session;
 
       // 检查 APP 绑定状态
       const isBound = session.clientId ? wsServer.isControllerBound(session.clientId) : false;
@@ -436,6 +498,235 @@ export function registerControlTools(
       );
     }
   );
+
+  // ========== dg_start_continuous_playback ==========
+  // 启动持续播放，循环发送波形直到手动停止
+  toolManager.registerTool(
+    "dg_start_continuous_playback",
+    `启动持续播放模式，循环发送波形数据直到手动停止。
+与dg_send_waveform不同，持续播放会自动循环发送波形，适合需要持续输出的场景。
+支持两种方式提供波形：
+1. 直接提供waveforms数组
+2. 提供waveformName引用已保存的波形
+可选参数：
+- interval: 发送间隔（毫秒），默认100ms
+- batchSize: 每次发送的波形数量，默认5`,
+    {
+      type: "object",
+      properties: {
+        deviceId: { type: "string", description: "设备ID（与alias二选一，优先使用）" },
+        alias: { type: "string", description: "设备别名（与deviceId二选一）" },
+        channel: { type: "string", enum: ["A", "B"], description: "通道" },
+        waveforms: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 100,
+          description: "波形数据数组，每项为8字节HEX字符串。与waveformName二选一",
+        },
+        waveformName: {
+          type: "string",
+          description: "已保存的波形名称。与waveforms二选一",
+        },
+        interval: {
+          type: "number",
+          minimum: 50,
+          maximum: 5000,
+          description: "发送间隔（毫秒），默认100",
+        },
+        batchSize: {
+          type: "number",
+          minimum: 1,
+          maximum: 20,
+          description: "每次发送的波形数量，默认5",
+        },
+      },
+      required: ["channel"],
+    },
+    async (params) => {
+      // 使用 resolveDevice 支持 deviceId 和 alias
+      const deviceResult = resolveDevice(
+        sessionManager,
+        params.deviceId as string | undefined,
+        params.alias as string | undefined
+      );
+      if ("error" in deviceResult) return createToolError(deviceResult.error);
+      const session = deviceResult.session;
+
+      const channelResult = validateChannel(params.channel as string);
+      if ("error" in channelResult) return createToolError(channelResult.error);
+      const channel = channelResult.channel;
+
+      // 获取波形数据来源
+      const rawWaveforms = params.waveforms as string[] | undefined;
+      const waveformName = params.waveformName as string | undefined;
+
+      if (!rawWaveforms && !waveformName) {
+        return createToolError("必须提供 waveforms 或 waveformName 参数之一");
+      }
+
+      let waveforms: string[];
+
+      if (rawWaveforms) {
+        const waveformsResult = validateWaveforms(rawWaveforms);
+        if ("error" in waveformsResult) return createToolError(waveformsResult.error);
+        waveforms = waveformsResult.waveforms;
+      } else {
+        const storage = getWaveformStorage();
+        const storedWaveform = storage.get(waveformName!);
+        if (!storedWaveform) {
+          return createToolError(`波形不存在: ${waveformName}`);
+        }
+        waveforms = storedWaveform.hexWaveforms;
+      }
+
+      // 连接和绑定状态检查
+      if (!session.clientId) {
+        return createToolError("设备未连接");
+      }
+
+      const isBound = wsServer.isControllerBound(session.clientId);
+      if (!isBound) {
+        return createToolError("设备未绑定APP");
+      }
+
+      // 获取可选参数
+      const interval = typeof params.interval === "number" ? params.interval : 100;
+      const batchSize = typeof params.batchSize === "number" ? params.batchSize : 5;
+
+      // 启动持续播放
+      const success = wsServer.startContinuousPlayback(
+        session.clientId,
+        channel,
+        waveforms,
+        interval,
+        batchSize
+      );
+
+      if (!success) {
+        return createToolError("启动持续播放失败");
+      }
+
+      sessionManager.touchSession(session.deviceId);
+
+      return createToolResult(
+        JSON.stringify({
+          success: true,
+          deviceId: session.deviceId,
+          channel,
+          waveformCount: waveforms.length,
+          interval,
+          batchSize,
+          source: rawWaveforms ? "direct" : `waveform:${waveformName}`,
+        })
+      );
+    }
+  );
+
+  // ========== dg_stop_continuous_playback ==========
+  // 停止持续播放
+  toolManager.registerTool(
+    "dg_stop_continuous_playback",
+    `停止指定通道的持续播放。
+会立即停止循环发送并清空波形队列。`,
+    {
+      type: "object",
+      properties: {
+        deviceId: { type: "string", description: "设备ID（与alias二选一，优先使用）" },
+        alias: { type: "string", description: "设备别名（与deviceId二选一）" },
+        channel: { type: "string", enum: ["A", "B"], description: "通道" },
+      },
+      required: ["channel"],
+    },
+    async (params) => {
+      // 使用 resolveDevice 支持 deviceId 和 alias
+      const deviceResult = resolveDevice(
+        sessionManager,
+        params.deviceId as string | undefined,
+        params.alias as string | undefined
+      );
+      if ("error" in deviceResult) return createToolError(deviceResult.error);
+      const session = deviceResult.session;
+
+      const channelResult = validateChannel(params.channel as string);
+      if ("error" in channelResult) return createToolError(channelResult.error);
+      const channel = channelResult.channel;
+
+      // 连接状态检查
+      if (!session.clientId) {
+        return createToolError("设备未连接");
+      }
+
+      // 停止持续播放
+      const success = wsServer.stopContinuousPlayback(session.clientId, channel);
+
+      if (!success) {
+        return createToolError("停止持续播放失败：该通道没有正在进行的持续播放");
+      }
+
+      sessionManager.touchSession(session.deviceId);
+
+      return createToolResult(
+        JSON.stringify({
+          success: true,
+          deviceId: session.deviceId,
+          channel,
+        })
+      );
+    }
+  );
+
+  // ========== dg_get_playback_status ==========
+  // 获取持续播放状态
+  toolManager.registerTool(
+    "dg_get_playback_status",
+    `获取设备的持续播放状态。
+返回A和B通道的播放状态，包括是否正在播放、波形数量、发送间隔等信息。`,
+    {
+      type: "object",
+      properties: {
+        deviceId: { type: "string", description: "设备ID（与alias二选一，优先使用）" },
+        alias: { type: "string", description: "设备别名（与deviceId二选一）" },
+      },
+      required: [],
+    },
+    async (params) => {
+      // 使用 resolveDevice 支持 deviceId 和 alias
+      const deviceResult = resolveDevice(
+        sessionManager,
+        params.deviceId as string | undefined,
+        params.alias as string | undefined
+      );
+      if ("error" in deviceResult) return createToolError(deviceResult.error);
+      const session = deviceResult.session;
+
+      // 连接状态检查
+      if (!session.clientId) {
+        return createToolError("设备未连接");
+      }
+
+      // 获取两个通道的播放状态
+      const statusA = wsServer.getContinuousPlaybackState(session.clientId, "A");
+      const statusB = wsServer.getContinuousPlaybackState(session.clientId, "B");
+
+      return createToolResult(
+        JSON.stringify({
+          deviceId: session.deviceId,
+          channelA: statusA ? {
+            playing: statusA.active,
+            waveformCount: statusA.waveformCount,
+            interval: statusA.interval,
+            batchSize: statusA.batchSize,
+          } : { playing: false },
+          channelB: statusB ? {
+            playing: statusB.active,
+            waveformCount: statusB.waveformCount,
+            interval: statusB.interval,
+            batchSize: statusB.batchSize,
+          } : { playing: false },
+        })
+      );
+    }
+  );
 }
 
 // ============================================================
@@ -448,4 +739,5 @@ export {
   validateStrengthValue,
   validateStrengthMode,
   validateWaveforms,
+  resolveDevice,
 };

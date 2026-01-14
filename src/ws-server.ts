@@ -38,6 +38,26 @@ interface WaveformTimer {
   remaining: number;
 }
 
+/** 持续播放状态 */
+interface ContinuousPlaybackState {
+  /** 控制器 ID */
+  controllerId: string;
+  /** 通道 */
+  channel: "A" | "B";
+  /** 波形数据（循环播放） */
+  waveforms: string[];
+  /** 当前播放索引 */
+  currentIndex: number;
+  /** 发送间隔（毫秒） */
+  interval: number;
+  /** 每次发送的波形数量 */
+  batchSize: number;
+  /** 定时器 ID */
+  timerId: ReturnType<typeof setInterval> | null;
+  /** 是否正在播放 */
+  active: boolean;
+}
+
 /** WebSocket 服务器选项 */
 export interface WSServerOptions {
   /** 独立端口（如果不附加到 HTTP 服务器） */
@@ -64,6 +84,8 @@ export class DGLabWSServer {
   private clients: Map<string, ClientInfo> = new Map();
   private relations: Map<string, string> = new Map();
   private waveformTimers: Map<string, WaveformTimer> = new Map();
+  /** 持续播放状态 Map，key 格式: controllerId-channel */
+  private continuousPlaybacks: Map<string, ContinuousPlaybackState> = new Map();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private options: WSServerOptions & { heartbeatInterval: number };
   private attachedPort: number = 0;
@@ -130,6 +152,13 @@ export class DGLabWSServer {
       clearInterval(timer.timerId);
     }
     this.waveformTimers.clear();
+    // 清理所有持续播放
+    for (const playback of this.continuousPlaybacks.values()) {
+      if (playback.timerId) {
+        clearInterval(playback.timerId);
+      }
+    }
+    this.continuousPlaybacks.clear();
     for (const client of this.clients.values()) {
       client.ws.close();
     }
@@ -293,6 +322,17 @@ export class DGLabWSServer {
       if (key.startsWith(clientId + "-")) {
         clearInterval(timer.timerId);
         this.waveformTimers.delete(key);
+      }
+    }
+
+    // 清理该客户端的持续播放
+    for (const [key, playback] of this.continuousPlaybacks.entries()) {
+      if (playback.controllerId === clientId) {
+        if (playback.timerId) {
+          clearInterval(playback.timerId);
+        }
+        this.continuousPlaybacks.delete(key);
+        console.log(`[WS 服务器] 已停止持续播放: ${key}`);
       }
     }
 
@@ -463,6 +503,19 @@ export class DGLabWSServer {
       }
     }
 
+    // 清理该控制器的持续播放
+    for (const channel of ["A", "B"] as const) {
+      const key = `${controllerId}-${channel}`;
+      const state = this.continuousPlaybacks.get(key);
+      if (state) {
+        if (state.timerId) {
+          clearInterval(state.timerId);
+        }
+        this.continuousPlaybacks.delete(key);
+        console.log(`[WS 服务器] 已停止持续播放: ${key}`);
+      }
+    }
+
     // 如果有绑定的 APP，先解绑并通知
     if (client.boundTo) {
       const appClient = this.clients.get(client.boundTo);
@@ -538,6 +591,157 @@ export class DGLabWSServer {
     const channelNum = channel === "A" ? 1 : 2;
     this.send(appClient.ws, { type: "msg", clientId: controllerId, targetId: appId, message: `clear-${channelNum}` });
     return true;
+  }
+
+  // ============ 持续播放 API ============
+
+  /**
+   * 启动持续播放
+   * 
+   * 循环发送波形数据到指定通道，直到手动停止。
+   * 每次发送一批波形，按间隔循环发送。
+   * 
+   * @param controllerId - 控制器 ID
+   * @param channel - 目标通道 A 或 B
+   * @param waveforms - 要循环播放的波形数据
+   * @param interval - 发送间隔（毫秒），默认 100ms
+   * @param batchSize - 每次发送的波形数量，默认 5
+   * @returns 是否成功启动
+   */
+  startContinuousPlayback(
+    controllerId: string,
+    channel: "A" | "B",
+    waveforms: string[],
+    interval: number = 100,
+    batchSize: number = 5
+  ): boolean {
+    // 检查控制器是否已绑定 APP
+    if (!this.isControllerBound(controllerId)) {
+      console.log(`[WS 服务器] 持续播放失败: 控制器 ${controllerId} 未绑定 APP`);
+      return false;
+    }
+
+    // 检查波形数据是否有效
+    if (!waveforms || waveforms.length === 0) {
+      console.log(`[WS 服务器] 持续播放失败: 波形数据为空`);
+      return false;
+    }
+
+    const key = `${controllerId}-${channel}`;
+
+    // 如果已有持续播放，先停止
+    if (this.continuousPlaybacks.has(key)) {
+      this.stopContinuousPlayback(controllerId, channel);
+    }
+
+    // 创建持续播放状态
+    const state: ContinuousPlaybackState = {
+      controllerId,
+      channel,
+      waveforms,
+      currentIndex: 0,
+      interval,
+      batchSize,
+      timerId: null,
+      active: true,
+    };
+
+    // 启动定时器循环发送波形
+    state.timerId = setInterval(() => {
+      if (!state.active) {
+        return;
+      }
+
+      // 获取当前批次的波形
+      const batch: string[] = [];
+      for (let i = 0; i < state.batchSize; i++) {
+        batch.push(state.waveforms[state.currentIndex]!);
+        state.currentIndex = (state.currentIndex + 1) % state.waveforms.length;
+      }
+
+      // 发送波形
+      const success = this.sendWaveform(controllerId, channel, batch);
+      if (!success) {
+        // 发送失败，停止播放
+        console.log(`[WS 服务器] 持续播放发送失败，停止播放: ${key}`);
+        this.stopContinuousPlayback(controllerId, channel);
+      }
+    }, interval);
+
+    this.continuousPlaybacks.set(key, state);
+    console.log(`[WS 服务器] 已启动持续播放: ${key}，波形数: ${waveforms.length}，间隔: ${interval}ms`);
+    return true;
+  }
+
+  /**
+   * 停止持续播放
+   * 
+   * 停止指定通道的持续播放并清空波形队列。
+   * 
+   * @param controllerId - 控制器 ID
+   * @param channel - 目标通道 A 或 B
+   * @returns 是否成功停止
+   */
+  stopContinuousPlayback(controllerId: string, channel: "A" | "B"): boolean {
+    const key = `${controllerId}-${channel}`;
+    const state = this.continuousPlaybacks.get(key);
+
+    if (!state) {
+      console.log(`[WS 服务器] 停止持续播放失败: ${key} 不存在`);
+      return false;
+    }
+
+    // 停止定时器
+    state.active = false;
+    if (state.timerId) {
+      clearInterval(state.timerId);
+      state.timerId = null;
+    }
+
+    // 清空波形队列
+    this.clearWaveform(controllerId, channel);
+
+    // 移除状态
+    this.continuousPlaybacks.delete(key);
+    console.log(`[WS 服务器] 已停止持续播放: ${key}`);
+    return true;
+  }
+
+  /**
+   * 检查是否正在持续播放
+   * 
+   * @param controllerId - 控制器 ID
+   * @param channel - 目标通道 A 或 B
+   * @returns 是否正在持续播放
+   */
+  isContinuousPlaying(controllerId: string, channel: "A" | "B"): boolean {
+    const key = `${controllerId}-${channel}`;
+    const state = this.continuousPlaybacks.get(key);
+    return state?.active ?? false;
+  }
+
+  /**
+   * 获取持续播放状态
+   * 
+   * @param controllerId - 控制器 ID
+   * @param channel - 目标通道 A 或 B
+   * @returns 持续播放状态或 null
+   */
+  getContinuousPlaybackState(controllerId: string, channel: "A" | "B"): {
+    waveformCount: number;
+    interval: number;
+    batchSize: number;
+    active: boolean;
+  } | null {
+    const key = `${controllerId}-${channel}`;
+    const state = this.continuousPlaybacks.get(key);
+    if (!state) return null;
+    return {
+      waveformCount: state.waveforms.length,
+      interval: state.interval,
+      batchSize: state.batchSize,
+      active: state.active,
+    };
   }
 
   /** 获取 APP 扫描的二维码 URL */

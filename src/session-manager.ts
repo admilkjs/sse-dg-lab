@@ -57,6 +57,8 @@ export interface DeviceSession {
   lastActive: Date;
   /** 会话创建时间 */
   createdAt: Date;
+  /** 连接超时定时器 ID（未绑定 APP 时有效） */
+  connectionTimeoutId: ReturnType<typeof setTimeout> | null;
 }
 
 /**
@@ -68,10 +70,14 @@ export interface DeviceSession {
 export class SessionManager {
   private sessions: Map<string, DeviceSession> = new Map();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  /** 连接超时时间（毫秒） */
+  private connectionTimeoutMs: number;
 
-  constructor() {
+  constructor(connectionTimeoutMinutes: number = 5) {
+    this.connectionTimeoutMs = connectionTimeoutMinutes * 60 * 1000;
     // 启动时立即开始定期清理过期会话
     this.startCleanupTimer();
+    console.log(`[会话] 连接超时设置: ${connectionTimeoutMinutes} 分钟`);
   }
 
   /**
@@ -79,6 +85,7 @@ export class SessionManager {
    * 
    * 生成唯一的 deviceId 并初始化会话状态。
    * 新会话默认未连接、未绑定，强度为 0，上限为 200。
+   * 会启动连接超时计时器，如果在超时时间内未绑定 APP 则自动销毁。
    * 
    * @returns 新创建的会话对象
    */
@@ -100,7 +107,17 @@ export class SessionManager {
       strengthLimitB: 200,
       lastActive: now,
       createdAt: now,
+      connectionTimeoutId: null,
     };
+
+    // 启动连接超时计时器
+    session.connectionTimeoutId = setTimeout(() => {
+      const currentSession = this.sessions.get(deviceId);
+      if (currentSession && !currentSession.boundToApp) {
+        console.log(`[会话] 连接超时: ${deviceId} (${this.connectionTimeoutMs / 60000} 分钟内未绑定 APP)`);
+        this.deleteSession(deviceId);
+      }
+    }, this.connectionTimeoutMs);
 
     this.sessions.set(deviceId, session);
     console.log(`[会话] 已创建: ${deviceId}`);
@@ -158,7 +175,7 @@ export class SessionManager {
   /**
    * 删除会话
    * 
-   * 会关闭关联的 WebSocket 连接并从内存中移除会话数据。
+   * 会关闭关联的 WebSocket 连接、清理超时计时器并从内存中移除会话数据。
    * 
    * @param deviceId - 要删除的设备 ID
    * @returns 是否成功删除（false 表示会话不存在）
@@ -166,6 +183,11 @@ export class SessionManager {
   deleteSession(deviceId: string): boolean {
     const session = this.sessions.get(deviceId);
     if (session) {
+      // 清理连接超时计时器
+      if (session.connectionTimeoutId) {
+        clearTimeout(session.connectionTimeoutId);
+        session.connectionTimeoutId = null;
+      }
       if (session.ws) {
         try { session.ws.close(); } catch { /* 忽略 */ }
       }
@@ -283,6 +305,31 @@ export class SessionManager {
   }
 
   /**
+   * APP 绑定成功时调用
+   * 
+   * 取消连接超时计时器，因为设备已成功绑定 APP。
+   * 同时更新会话的 boundToApp 状态。
+   * 
+   * @param deviceId - 设备 ID
+   * @returns 是否成功
+   */
+  onAppBound(deviceId: string): boolean {
+    const session = this.sessions.get(deviceId);
+    if (session) {
+      // 取消连接超时计时器
+      if (session.connectionTimeoutId) {
+        clearTimeout(session.connectionTimeoutId);
+        session.connectionTimeoutId = null;
+        console.log(`[会话] 已取消连接超时: ${deviceId} (APP 已绑定)`);
+      }
+      session.boundToApp = true;
+      session.lastActive = new Date();
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * 获取当前会话数量
    */
   get sessionCount(): number {
@@ -310,6 +357,10 @@ export class SessionManager {
     for (const [deviceId, session] of this.sessions) {
       const age = now - session.lastActive.getTime();
       if (age > SESSION_TTL_MS) {
+        // 清理连接超时计时器
+        if (session.connectionTimeoutId) {
+          clearTimeout(session.connectionTimeoutId);
+        }
         if (session.ws) {
           try { session.ws.close(); } catch { /* 忽略 */ }
         }
@@ -348,11 +399,15 @@ export class SessionManager {
   /**
    * 清除所有会话
    * 
-   * 关闭所有 WebSocket 连接并清空会话存储。
+   * 关闭所有 WebSocket 连接、清理所有计时器并清空会话存储。
    * 通常在服务器关闭或重置时调用。
    */
   clearAll(): void {
     for (const session of this.sessions.values()) {
+      // 清理连接超时计时器
+      if (session.connectionTimeoutId) {
+        clearTimeout(session.connectionTimeoutId);
+      }
       if (session.ws) {
         try { session.ws.close(); } catch { /* 忽略 */ }
       }

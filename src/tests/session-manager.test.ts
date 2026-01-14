@@ -3,11 +3,13 @@
  * Feature: dg-lab-sse-tool
  * Property 11: Alias Case-Insensitive Search
  * Property 12: Multiple Devices Same Alias
+ * Property 7: Connection Timeout Timer Lifecycle
+ * Property 8: Unbound Session Auto-Destroy
  * 
  * Note: Session persistence tests removed - sessions are now memory-only
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fc from "fast-check";
 import { SessionManager } from "../session-manager";
 
@@ -196,6 +198,145 @@ describe("Session Manager", () => {
 
       manager.stopCleanupTimer();
       manager2.stopCleanupTimer();
+    });
+  });
+
+  /**
+   * Property 7: Connection Timeout Timer Lifecycle
+   * For any newly created session, a connection timeout timer should be started;
+   * when the session successfully binds to APP, the timer should be cancelled.
+   * Validates: Requirements 4.1, 4.4
+   */
+  describe("Property 7: Connection Timeout Timer Lifecycle", () => {
+    test("createSession starts connection timeout timer", () => {
+      const manager = new SessionManager(5); // 5 minutes timeout
+      const session = manager.createSession();
+
+      // Timer should be set
+      expect(session.connectionTimeoutId).not.toBeNull();
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("onAppBound cancels connection timeout timer", () => {
+      const manager = new SessionManager(5);
+      const session = manager.createSession();
+
+      // Timer should be set initially
+      expect(session.connectionTimeoutId).not.toBeNull();
+
+      // Bind to APP
+      manager.onAppBound(session.deviceId);
+
+      // Timer should be cancelled
+      const updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession!.connectionTimeoutId).toBeNull();
+      expect(updatedSession!.boundToApp).toBe(true);
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("deleteSession clears connection timeout timer", () => {
+      const manager = new SessionManager(5);
+      const session = manager.createSession();
+
+      // Timer should be set
+      expect(session.connectionTimeoutId).not.toBeNull();
+
+      // Delete session - should not throw
+      expect(manager.deleteSession(session.deviceId)).toBe(true);
+
+      manager.stopCleanupTimer();
+    });
+
+    test("Property: For any session, timer lifecycle is consistent", () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 60 }), // timeout minutes
+          fc.boolean(), // whether to bind
+          (timeoutMinutes, shouldBind) => {
+            const manager = new SessionManager(timeoutMinutes);
+            const session = manager.createSession();
+
+            // Timer should always be set on creation
+            expect(session.connectionTimeoutId).not.toBeNull();
+
+            if (shouldBind) {
+              manager.onAppBound(session.deviceId);
+              const updated = manager.getSession(session.deviceId);
+              // Timer should be cancelled after binding
+              expect(updated!.connectionTimeoutId).toBeNull();
+              expect(updated!.boundToApp).toBe(true);
+            }
+
+            manager.stopCleanupTimer();
+            manager.clearAll();
+          }
+        ),
+        { numRuns: 50 }
+      );
+    });
+  });
+
+  /**
+   * Property 8: Unbound Session Auto-Destroy
+   * For any session created that is not bound to APP within the timeout period,
+   * it should be automatically destroyed.
+   * Validates: Requirements 4.2, 4.3
+   */
+  describe("Property 8: Unbound Session Auto-Destroy", () => {
+    test("Session is destroyed after connection timeout if not bound", async () => {
+      // Use a very short timeout for testing (0.05 minutes = 3 seconds)
+      const manager = new SessionManager(0.05);
+      const session = manager.createSession();
+
+      // Session should exist initially
+      expect(manager.getSession(session.deviceId)).not.toBeNull();
+
+      // Wait for timeout (3 seconds + buffer)
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      // Session should be destroyed
+      expect(manager.getSession(session.deviceId)).toBeNull();
+
+      manager.stopCleanupTimer();
+    }, 10000); // 10 second test timeout
+
+    test("Bound session is not destroyed after connection timeout", async () => {
+      // Use a very short timeout for testing
+      const manager = new SessionManager(0.05);
+      const session = manager.createSession();
+
+      // Bind to APP immediately
+      manager.onAppBound(session.deviceId);
+
+      // Wait for what would be the timeout
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      // Session should still exist because it was bound
+      expect(manager.getSession(session.deviceId)).not.toBeNull();
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    }, 10000);
+
+    test("Custom timeout is respected", () => {
+      const manager1 = new SessionManager(1); // 1 minute
+      const manager2 = new SessionManager(10); // 10 minutes
+
+      // Both should create sessions with timers
+      const session1 = manager1.createSession();
+      const session2 = manager2.createSession();
+
+      expect(session1.connectionTimeoutId).not.toBeNull();
+      expect(session2.connectionTimeoutId).not.toBeNull();
+
+      manager1.stopCleanupTimer();
+      manager2.stopCleanupTimer();
+      manager1.clearAll();
+      manager2.clearAll();
     });
   });
 });

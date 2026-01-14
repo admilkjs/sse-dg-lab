@@ -1,0 +1,46 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (留空则使用 package.json 中的版本)'
+        required: false
+        type: string
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build
+        run: npm run build
+
+      - name: Update version (if specified)
+        if: ${{ github.event.inputs.version != '' }}
+        run: npm version ${{ github.event.inputs.version }} --no-git-tag-version
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

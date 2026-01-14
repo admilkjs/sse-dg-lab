@@ -59,7 +59,7 @@ export function registerMCPProtocol(
 ): void {
   // 处理 initialize 请求
   handler.registerRequestHandler("initialize", async (params) => {
-    const initParams = params as InitializeParams | undefined;
+    const initParams = params as unknown as InitializeParams | undefined;
     
     // 验证协议版本
     if (initParams?.protocolVersion && initParams.protocolVersion !== MCP_PROTOCOL_VERSION) {

@@ -17,6 +17,7 @@ import {
   validateStrengthValue,
   validateStrengthMode,
   validateWaveforms,
+  resolveDevice,
 } from "../tools/control-tools";
 import { SessionManager } from "../session-manager";
 import { createToolError } from "../tool-manager";
@@ -292,6 +293,169 @@ describe("Control Tools Validation", () => {
         ),
         { numRuns: 50 }
       );
+    });
+  });
+
+  /**
+   * Property 5: Alias Resolution Consistency
+   * For any control tool call, using a valid alias should correctly identify
+   * and operate on the corresponding device, with the same effect as using deviceId.
+   * Validates: Requirements 2.1, 2.4
+   */
+  describe("Property 5: Alias Resolution Consistency", () => {
+    test("resolveDevice with deviceId returns correct session", () => {
+      const manager = new SessionManager();
+      const session = manager.createSession();
+
+      const result = resolveDevice(manager, session.deviceId, undefined);
+      expect("session" in result).toBe(true);
+      if ("session" in result) {
+        expect(result.session.deviceId).toBe(session.deviceId);
+      }
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("resolveDevice with alias returns correct session", () => {
+      const manager = new SessionManager();
+      const session = manager.createSession();
+      manager.setAlias(session.deviceId, "test-device");
+
+      const result = resolveDevice(manager, undefined, "test-device");
+      expect("session" in result).toBe(true);
+      if ("session" in result) {
+        expect(result.session.deviceId).toBe(session.deviceId);
+      }
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("Property: For any device with alias, resolveDevice finds it", () => {
+      fc.assert(
+        fc.property(
+          fc.string({ minLength: 1, maxLength: 30 }).filter((s) => s.trim().length > 0),
+          (alias) => {
+            const manager = new SessionManager();
+            const session = manager.createSession();
+            manager.setAlias(session.deviceId, alias);
+
+            const result = resolveDevice(manager, undefined, alias);
+            expect("session" in result).toBe(true);
+            if ("session" in result) {
+              expect(result.session.deviceId).toBe(session.deviceId);
+            }
+
+            manager.stopCleanupTimer();
+            manager.clearAll();
+          }
+        ),
+        { numRuns: 50 }
+      );
+    });
+  });
+
+  /**
+   * Property 6: deviceId Priority
+   * For any tool call that provides both deviceId and alias,
+   * the system should use the deviceId and ignore the alias.
+   * Validates: Requirements 2.2
+   */
+  describe("Property 6: deviceId Priority", () => {
+    test("deviceId takes priority over alias", () => {
+      const manager = new SessionManager();
+      const session1 = manager.createSession();
+      const session2 = manager.createSession();
+      manager.setAlias(session1.deviceId, "device-one");
+      manager.setAlias(session2.deviceId, "device-two");
+
+      // Provide deviceId of session1 but alias of session2
+      const result = resolveDevice(manager, session1.deviceId, "device-two");
+      expect("session" in result).toBe(true);
+      if ("session" in result) {
+        // Should return session1 (by deviceId), not session2 (by alias)
+        expect(result.session.deviceId).toBe(session1.deviceId);
+      }
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("Property: deviceId always wins over alias", () => {
+      fc.assert(
+        fc.property(
+          fc.string({ minLength: 1, maxLength: 20 }),
+          fc.string({ minLength: 1, maxLength: 20 }),
+          (alias1, alias2) => {
+            const manager = new SessionManager();
+            const session1 = manager.createSession();
+            const session2 = manager.createSession();
+            manager.setAlias(session1.deviceId, alias1);
+            manager.setAlias(session2.deviceId, alias2);
+
+            // Provide deviceId of session1 but alias of session2
+            const result = resolveDevice(manager, session1.deviceId, alias2);
+            expect("session" in result).toBe(true);
+            if ("session" in result) {
+              expect(result.session.deviceId).toBe(session1.deviceId);
+            }
+
+            manager.stopCleanupTimer();
+            manager.clearAll();
+          }
+        ),
+        { numRuns: 30 }
+      );
+    });
+  });
+
+  /**
+   * Multiple alias match error
+   * Validates: Requirements 2.3
+   */
+  describe("Multiple Alias Match Error", () => {
+    test("Multiple devices with same alias returns error", () => {
+      const manager = new SessionManager();
+      const session1 = manager.createSession();
+      const session2 = manager.createSession();
+      manager.setAlias(session1.deviceId, "shared-alias");
+      manager.setAlias(session2.deviceId, "shared-alias");
+
+      const result = resolveDevice(manager, undefined, "shared-alias");
+      expect("error" in result).toBe(true);
+      if ("error" in result) {
+        expect(result.error).toContain("多个设备");
+      }
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("Non-existent alias returns error", () => {
+      const manager = new SessionManager();
+      manager.createSession();
+
+      const result = resolveDevice(manager, undefined, "non-existent");
+      expect("error" in result).toBe(true);
+      if ("error" in result) {
+        expect(result.error).toContain("未找到");
+      }
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("Neither deviceId nor alias returns error", () => {
+      const manager = new SessionManager();
+
+      const result = resolveDevice(manager, undefined, undefined);
+      expect("error" in result).toBe(true);
+      if ("error" in result) {
+        expect(result.error).toContain("必须提供");
+      }
+
+      manager.stopCleanupTimer();
     });
   });
 });

@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write  # 用于 npm provenance
 
 jobs:
   release-please:
@@ -23,3 +24,58 @@ jobs:
         with:
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
+      
+      # 2. 如果创建了 release，则发布到 npm
+      - name: Checkout code
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        if: ${{ steps.release.outputs.release_created }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        if: ${{ steps.release.outputs.release_created }}
+        run: bun install
+        working-directory: dg-lab-mcp-server
+      
+      - name: Run tests
+        if: ${{ steps.release.outputs.release_created }}
+        run: bun test
+        working-directory: dg-lab-mcp-server
+      
+      - name: Run linting
+        if: ${{ steps.release.outputs.release_created }}
+        run: bun run lint
+        working-directory: dg-lab-mcp-server
+      
+      - name: Type check
+        if: ${{ steps.release.outputs.release_created }}
+        run: bun run typecheck
+        working-directory: dg-lab-mcp-server
+      
+      - name: Setup Node.js
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Build package
+        if: ${{ steps.release.outputs.release_created }}
+        run: bun run build
+        working-directory: dg-lab-mcp-server
+      
+      - name: Publish to npm
+        if: ${{ steps.release.outputs.release_created }}
+        run: npm publish --provenance --access public
+        working-directory: dg-lab-mcp-server
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      
+      - name: Publish success
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "✅ Successfully published dg-lab-mcp-sse-server@${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }} to npm"

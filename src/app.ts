@@ -144,9 +144,13 @@ function createWSServer(config: ServerConfig, sessionManager: SessionManager): D
           boundToApp: !!appId,
           targetId: appId,
         });
-        // 绑定 APP 时取消连接超时计时器
+        // 绑定 APP 时处理重连逻辑
         if (appId) {
           sessionManager.onAppBound(session.deviceId);
+          // 如果是重新绑定（之前断开过），调用 handleReconnection 恢复会话状态
+          if (session.disconnectedAt) {
+            sessionManager.handleReconnection(session.deviceId);
+          }
         }
       }
     },

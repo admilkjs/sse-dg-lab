@@ -130,13 +130,15 @@ describe("Device Tools", () => {
             const session = manager.createSession();
 
             // Set alias
-            const success = manager.setAlias(session.deviceId, alias);
-            expect(success).toBe(true);
+            const result = manager.setAlias(session.deviceId, alias);
+            expect(result.success).toBe(true);
 
             // Get session and verify alias
             const retrieved = manager.getSession(session.deviceId);
             expect(retrieved).not.toBeNull();
             expect(retrieved!.alias).toBe(alias);
+
+            manager.stopCleanupTimer();
           }
         ),
         { numRuns: 100 }

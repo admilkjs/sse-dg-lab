@@ -69,38 +69,50 @@ describe("Session Manager", () => {
    * For any alias, multiple devices can be assigned the same alias,
    * and findByAlias SHALL return all of them.
    */
-  describe("Property 12: Multiple Devices Same Alias", () => {
-    test("Multiple devices can have the same alias", () => {
+  describe("Property 12: Alias Uniqueness", () => {
+    test("Multiple devices cannot have the same alias", () => {
       fc.assert(
         fc.property(
           fc.string({ minLength: 1, maxLength: 30 }),
-          fc.integer({ min: 1, max: 5 }),
-          (alias, count) => {
+          (alias) => {
             const manager = new SessionManager();
-            const deviceIds: string[] = [];
 
-            // Create multiple sessions with same alias
-            for (let i = 0; i < count; i++) {
-              const session = manager.createSession();
-              manager.setAlias(session.deviceId, alias);
-              deviceIds.push(session.deviceId);
-            }
+            // Create first session with alias
+            const session1 = manager.createSession();
+            const result1 = manager.setAlias(session1.deviceId, alias);
+            expect(result1.success).toBe(true);
 
-            // Find by alias should return all
+            // Create second session and try to set same alias
+            const session2 = manager.createSession();
+            const result2 = manager.setAlias(session2.deviceId, alias);
+            expect(result2.success).toBe(false);
+            expect(result2.error).toContain("已被其他设备使用");
+
+            // Only first device should have the alias
             const found = manager.findByAlias(alias);
-            expect(found.length).toBe(count);
-
-            // All device IDs should be in the result
-            const foundIds = found.map((s) => s.deviceId);
-            for (const id of deviceIds) {
-              expect(foundIds).toContain(id);
-            }
+            expect(found.length).toBe(1);
+            expect(found[0].deviceId).toBe(session1.deviceId);
 
             manager.stopCleanupTimer();
           }
         ),
         { numRuns: 50 }
       );
+    });
+
+    test("Same device can update its own alias", () => {
+      const manager = new SessionManager();
+      const session = manager.createSession();
+
+      // Set initial alias
+      const result1 = manager.setAlias(session.deviceId, "alias1");
+      expect(result1.success).toBe(true);
+
+      // Update to same alias (should succeed)
+      const result2 = manager.setAlias(session.deviceId, "alias1");
+      expect(result2.success).toBe(true);
+
+      manager.stopCleanupTimer();
     });
   });
 
@@ -137,7 +149,8 @@ describe("Session Manager", () => {
 
     test("setAlias returns false for non-existent deviceId", () => {
       const manager = new SessionManager();
-      expect(manager.setAlias("non-existent", "alias")).toBe(false);
+      const result = manager.setAlias("non-existent", "alias");
+      expect(result.success).toBe(false);
       manager.stopCleanupTimer();
     });
 

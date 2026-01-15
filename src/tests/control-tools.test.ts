@@ -414,19 +414,25 @@ describe("Control Tools Validation", () => {
    * Multiple alias match error
    * Validates: Requirements 2.3
    */
-  describe("Multiple Alias Match Error", () => {
-    test("Multiple devices with same alias returns error", () => {
+  describe("Alias Uniqueness Error", () => {
+    test("Setting duplicate alias returns error", () => {
       const manager = new SessionManager();
       const session1 = manager.createSession();
       const session2 = manager.createSession();
-      manager.setAlias(session1.deviceId, "shared-alias");
-      manager.setAlias(session2.deviceId, "shared-alias");
+      
+      // First alias should succeed
+      const result1 = manager.setAlias(session1.deviceId, "shared-alias");
+      expect(result1.success).toBe(true);
+      
+      // Second alias should fail with error
+      const result2 = manager.setAlias(session2.deviceId, "shared-alias");
+      expect(result2.success).toBe(false);
+      expect(result2.error).toContain("已被其他设备使用");
 
-      const result = resolveDevice(manager, undefined, "shared-alias");
-      expect("error" in result).toBe(true);
-      if ("error" in result) {
-        expect(result.error).toContain("多个设备");
-      }
+      // Only one device should have the alias
+      const found = manager.findByAlias("shared-alias");
+      expect(found.length).toBe(1);
+      expect(found[0].deviceId).toBe(session1.deviceId);
 
       manager.stopCleanupTimer();
       manager.clearAll();

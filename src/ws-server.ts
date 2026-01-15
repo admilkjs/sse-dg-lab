@@ -366,13 +366,11 @@ export class DGLabWSServer {
           }
           // 清理绑定关系
           this.relations.delete(controllerId);
-          // 触发绑定变化回调
-          if (this.options.onBindChange) {
-            this.options.onBindChange(controllerId, null);
-          }
+          // 注意：APP 断开时不触发 onBindChange，由 onAppDisconnect 处理
+          // 这样可以保留 boundToApp 状态，启动重连超时机制
         }
       }
-      // 触发 APP 断开回调
+      // 触发 APP 断开回调（由 app.ts 调用 handleDisconnection 处理状态）
       if (this.options.onAppDisconnect) {
         this.options.onAppDisconnect(clientId);
       }

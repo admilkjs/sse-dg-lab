@@ -3,6 +3,7 @@
  * @description 封装应用的初始化逻辑，包括依赖注入和模块组装
  */
 
+import { createRequire } from "module";
 import { loadConfig, getEffectiveIP, getLocalIP, type ServerConfig } from "./config";
 import { createServer, broadcastNotification, type MCPServer } from "./server";
 import { registerMCPProtocol } from "./mcp-protocol";
@@ -13,6 +14,11 @@ import { registerDeviceTools } from "./tools/device-tools";
 import { registerControlTools } from "./tools/control-tools";
 import { getWaveformTools, initWaveformStorage } from "./tools/waveform-tools";
 import { WaveformStorage, loadWaveforms } from "./waveform-storage";
+
+// 读取 package.json 获取版本号
+const require = createRequire(import.meta.url);
+const packageJson = require("../package.json") as { version: string };
+const VERSION = packageJson.version;
 
 /**
  * 应用实例，包含所有核心组件的引用
@@ -95,7 +101,7 @@ export function createApp(): App {
  */
 function printConfigInfo(config: ServerConfig): void {
   console.log("=".repeat(50));
-  console.log("DG-LAB MCP SSE 服务器");
+  console.log(`DG-LAB MCP SSE 服务器 v${VERSION}`);
   console.log("=".repeat(50));
   console.log(`[配置] 端口: ${config.port}`);
   console.log(`[配置] SSE 路径: ${config.ssePath}`);

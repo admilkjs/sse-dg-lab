@@ -1,6 +1,6 @@
 {
   "name": "dg-lab-mcp",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "description": "MCP SSE Server for DG-LAB device control",
   "type": "module",
   "main": "./dist/index.js",

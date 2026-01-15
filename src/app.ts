@@ -14,6 +14,7 @@ import { registerDeviceTools } from "./tools/device-tools";
 import { registerControlTools } from "./tools/control-tools";
 import { getWaveformTools, initWaveformStorage } from "./tools/waveform-tools";
 import { WaveformStorage, loadWaveforms } from "./waveform-storage";
+import { enableStdioMode } from "./logger";
 
 // 读取 package.json 获取版本号
 const require = createRequire(import.meta.url);
@@ -47,6 +48,11 @@ export interface App {
 export function createApp(): App {
   // 加载配置
   const config = loadConfig();
+  
+  // stdio 模式下，在任何日志输出前启用 stderr 重定向
+  if (config.transportMode === "stdio") {
+    enableStdioMode();
+  }
   
   // 打印配置信息
   printConfigInfo(config);

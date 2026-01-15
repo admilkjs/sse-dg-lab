@@ -11,7 +11,6 @@ import type { ServerConfig } from "./config";
 import { SSETransport } from "./sse-transport";
 import { JsonRpcHandler } from "./jsonrpc-handler";
 import { JsonRpcStdioBridge } from "./stdio-transport.js";
-import { enableStdioMode } from "./logger.js";
 
 /**
  * MCP 服务器接口
@@ -143,8 +142,7 @@ export function createServer(config: ServerConfig): MCPServer {
 
     async start(): Promise<void> {
       if (config.transportMode === "stdio") {
-        // stdio 模式下将日志重定向到 stderr，避免干扰 JSON-RPC 通信
-        enableStdioMode();
+        // stdio 模式：enableStdioMode() 已在 app.ts 中调用
         console.log("[服务器] 以 stdio 模式运行 (npm 包 MCP)");
         stdioBridge?.start();
         // stdio 模式不启动 HTTP 服务器

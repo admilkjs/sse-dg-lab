@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.0...v1.2.0) (2026-01-15)
+
+
+### ✨ 新功能
+
+* 启动日志显示版本号 ([9a8a6d7](https://github.com/admilkjs/sse-dg-lab/commit/9a8a6d7b8900ed0cc68a218374903a1a676de1be))
+
+
+### 🐛 错误修复
+
+* stdio 模式下将日志重定向到 stderr ([883ee63](https://github.com/admilkjs/sse-dg-lab/commit/883ee63f86e16f2fdb05ad8110fd777bf1d1bc82))
+* stdio 模式下更早启用日志重定向 ([d788dd7](https://github.com/admilkjs/sse-dg-lab/commit/d788dd7edfad6a5e4fa1e6c6cc5a1e47e4e21c4b))
+
 ## [1.1.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.0.0...v1.1.0) (2026-01-15)
 
 

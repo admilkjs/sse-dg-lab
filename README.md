@@ -16,10 +16,10 @@
 
 ```bash
 # 全局安装
-npm install -g dg-lab-mcp-sse-server
+npm install -g dg-lab-mcpr
 
 # 或使用 npx 直接运行
-npx dg-lab-mcp-sse-server
+npx dg-lab-mcpr
 ```
 
 ## 快速开始
@@ -28,13 +28,13 @@ npx dg-lab-mcp-sse-server
 
 ```bash
 # 使用默认配置
-npx dg-lab-mcp-sse-server
+npx dg-lab-mcpr
 
 # 设置公网 IP
-PUBLIC_IP=1.2.3.4 npx dg-lab-mcp-sse-server
+PUBLIC_IP=1.2.3.4 npx dg-lab-mcpr
 
 # 设置端口
-PORT=8080 npx dg-lab-mcp-sse-server
+PORT=8080 npx dg-lab-mcpr
 ```
 
 ### 配置 MCP 客户端
@@ -46,7 +46,7 @@ PORT=8080 npx dg-lab-mcp-sse-server
   "mcpServers": {
     "dg-lab": {
       "command": "npx",
-      "args": ["dg-lab-mcp-sse-server"],
+      "args": ["dg-lab-mcpr"],
       "env": {
         "PUBLIC_IP": "你的公网IP"
       }
@@ -66,12 +66,13 @@ PORT=8080 npx dg-lab-mcp-sse-server
   "mcpServers": {
     "dg-lab": {
       "command": "npx",
-      "args": ["dg-lab-mcp-sse-server"],
+      "args": ["dg-lab-mcpr"],
       "env": {
         "PUBLIC_IP": "your.public.ip",
         "PORT": "3323",
         "CONNECTION_TIMEOUT_MINUTES": "10",
-        "RECONNECTION_TIMEOUT_MINUTES": "5"
+        "RECONNECTION_TIMEOUT_MINUTES": "5",
+        "MCP_TRANSPORT": "sse" // 可选: sse | http | stdio
       }
     }
   }
@@ -86,13 +87,21 @@ PORT=8080 npx dg-lab-mcp-sse-server
 |------|--------|------|
 | `PORT` | 3323 | 服务端口 (HTTP/WebSocket 共享) |
 | `PUBLIC_IP` | (自动检测) | 公网 IP 地址，用于生成二维码。留空则使用本地 IP |
+| `MCP_TRANSPORT` | sse | MCP 传输模式：`sse`(默认 SSE+POST)、`http`(纯 HTTP JSON-RPC)、`stdio`(标准输入输出，适合 npm 包内嵌) |
 | `SSE_PATH` | /sse | SSE 端点路径 |
 | `POST_PATH` | /message | POST 端点路径 |
+| `HTTP_RPC_PATH` | /rpc | `http` 模式下的 JSON-RPC 路径 |
 | `CONNECTION_TIMEOUT_MINUTES` | 5 | 未绑定设备的超时时间（分钟） |
 | `RECONNECTION_TIMEOUT_MINUTES` | 5 | 已绑定设备断开后的重连等待时间（分钟），超时后会话将被删除 |
 | `HEARTBEAT_INTERVAL` | 30000 | WebSocket 心跳间隔 (ms) |
 | `STALE_DEVICE_TIMEOUT` | 3600000 | 设备活跃超时 (ms)，默认 1 小时 |
 | `WAVEFORM_STORE_PATH` | ./data/waveforms.json | 波形存储路径 |
+
+### 传输模式说明
+
+- `sse`（默认）：Claude/HTTP 客户端使用 SSE + POST，保持原有行为。
+- `http`：纯 HTTP JSON-RPC，同步响应，适合不需要 SSE 的客户端。
+- `stdio`：从 stdin 读取 JSON-RPC，每行一条；有响应则写回 stdout（无需 HTTP 端口），便于作为 npm 包嵌入 MCP。
 
 ## 会话管理机制
 

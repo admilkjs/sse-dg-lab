@@ -13,6 +13,8 @@
 
 import * as os from "os";
 import { ConfigError, ErrorCode } from "./errors";
+
+export type EnvSource = Record<string, string | undefined>;
 /**
  * 服务器配置
  * 
@@ -24,10 +26,14 @@ export interface ServerConfig {
   port: number;
   /** 公网 IP 地址，用于生成二维码。留空则自动检测本地 IP */
   publicIp: string;
+  /** MCP 传输模式：sse（默认）、http（直接 HTTP JSON-RPC）、stdio（标准输入输出） */
+  transportMode: "sse" | "http" | "stdio";
   /** SSE 端点路径，MCP 客户端通过这个路径建立 SSE 连接 */
   ssePath: string;
   /** POST 端点路径，MCP 客户端通过这个路径发送 JSON-RPC 消息 */
   postPath: string;
+  /** HTTP JSON-RPC 端点路径，仅在 transportMode=http 时使用 */
+  rpcPath: string;
   /** 会话存储路径（目前未使用，会话仅存内存） */
   sessionStorePath: string;
   /** 波形存储路径，保存用户导入的波形数据 */
@@ -44,12 +50,10 @@ export interface ServerConfig {
 
 /**
  * 从环境变量读取字符串值
- * 
- * 如果环境变量未设置，返回默认值。这是个简单的辅助函数，
  * 让配置加载代码更清晰。
  */
-function getEnvString(key: string, defaultValue: string): string {
-  return process.env[key] ?? defaultValue;
+function getEnvString(key: string, defaultValue: string, env: EnvSource): string {
+  return env[key] ?? defaultValue;
 }
 
 /**
@@ -60,8 +64,8 @@ function getEnvString(key: string, defaultValue: string): string {
  * 
  * @throws 当环境变量值不是有效数字时
  */
-function getEnvNumber(key: string, defaultValue: number): number {
-  const value = process.env[key];
+function getEnvNumber(key: string, defaultValue: number, env: EnvSource): number {
+  const value = env[key];
   if (value === undefined) return defaultValue;
   const parsed = parseInt(value, 10);
   if (isNaN(parsed)) {
@@ -81,18 +85,20 @@ function getEnvNumber(key: string, defaultValue: number): number {
  * 
  * @returns 完整的服务器配置对象
  */
-export function loadConfig(): ServerConfig {
+export function loadConfig(customEnv: EnvSource = process.env as EnvSource): ServerConfig {
   const config: ServerConfig = {
-    port: getEnvNumber("PORT", 3323),
-    publicIp: getEnvString("PUBLIC_IP", ""),
-    ssePath: getEnvString("SSE_PATH", "/sse"),
-    postPath: getEnvString("POST_PATH", "/message"),
-    sessionStorePath: getEnvString("SESSION_STORE_PATH", "./data/sessions.json"),
-    waveformStorePath: getEnvString("WAVEFORM_STORE_PATH", "./data/waveforms.json"),
-    heartbeatInterval: getEnvNumber("HEARTBEAT_INTERVAL", 30000),
-    staleDeviceTimeout: getEnvNumber("STALE_DEVICE_TIMEOUT", 3600000),
-    connectionTimeoutMinutes: getEnvNumber("CONNECTION_TIMEOUT_MINUTES", 5),
-    reconnectionTimeoutMinutes: getEnvNumber("RECONNECTION_TIMEOUT_MINUTES", 5),
+    port: getEnvNumber("PORT", 3323, customEnv),
+    publicIp: getEnvString("PUBLIC_IP", "", customEnv),
+    transportMode: (getEnvString("MCP_TRANSPORT", "sse", customEnv) as ServerConfig["transportMode"]),
+    ssePath: getEnvString("SSE_PATH", "/sse", customEnv),
+    postPath: getEnvString("POST_PATH", "/message", customEnv),
+    rpcPath: getEnvString("HTTP_RPC_PATH", "/rpc", customEnv),
+    sessionStorePath: getEnvString("SESSION_STORE_PATH", "./data/sessions.json", customEnv),
+    waveformStorePath: getEnvString("WAVEFORM_STORE_PATH", "./data/waveforms.json", customEnv),
+    heartbeatInterval: getEnvNumber("HEARTBEAT_INTERVAL", 30000, customEnv),
+    staleDeviceTimeout: getEnvNumber("STALE_DEVICE_TIMEOUT", 3600000, customEnv),
+    connectionTimeoutMinutes: getEnvNumber("CONNECTION_TIMEOUT_MINUTES", 5, customEnv),
+    reconnectionTimeoutMinutes: getEnvNumber("RECONNECTION_TIMEOUT_MINUTES", 5, customEnv),
   };
 
   validateConfig(config);
@@ -112,6 +118,13 @@ function validateConfig(config: ServerConfig): void {
     throw new ConfigError(`端口无效: ${config.port}，必须在 1-65535 范围内`, {
       code: ErrorCode.CONFIG_INVALID_PORT,
       context: { port: config.port },
+    });
+  }
+
+  if (!["sse", "http", "stdio"].includes(config.transportMode)) {
+    throw new ConfigError(`传输模式无效: ${config.transportMode}，必须为 sse | http | stdio`, {
+      code: ErrorCode.CONFIG_INVALID_PATH,
+      context: { transportMode: config.transportMode },
     });
   }
 
@@ -142,6 +155,13 @@ function validateConfig(config: ServerConfig): void {
     throw new ConfigError(`POST 路径无效: ${config.postPath}，必须以 / 开头`, {
       code: ErrorCode.CONFIG_INVALID_PATH,
       context: { path: config.postPath, type: 'postPath' },
+    });
+  }
+
+  if (!config.rpcPath.startsWith("/")) {
+    throw new ConfigError(`HTTP RPC 路径无效: ${config.rpcPath}，必须以 / 开头`, {
+      code: ErrorCode.CONFIG_INVALID_PATH,
+      context: { path: config.rpcPath, type: 'rpcPath' },
     });
   }
 

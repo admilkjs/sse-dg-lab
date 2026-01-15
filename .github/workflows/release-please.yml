@@ -17,15 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. 运行 release-please，生成版本和 Release Notes
       - name: 🚀 运行 release-please
         id: release
         uses: googleapis/release-please-action@v4
         with:
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
-      
-      # 2. 如果创建了 release，则发布到 npm
       - name: Checkout code
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v4
@@ -68,4 +65,4 @@ jobs:
       - name: Publish success
         if: ${{ steps.release.outputs.release_created }}
         run: |
-          echo "✅ Successfully published dg-lab-mcp-sse-server@${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }} to npm"
+          echo "✅ Successfully published dg-lab-mcp@${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }} to npm"

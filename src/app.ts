@@ -3,8 +3,7 @@
  * @description 封装应用的初始化逻辑，包括依赖注入和模块组装
  */
 
-import type { ServerConfig } from "./config";
-import { loadConfig, getEffectiveIP, getLocalIP } from "./config";
+import { loadConfig, getEffectiveIP, getLocalIP, type ServerConfig } from "./config";
 import { createServer, broadcastNotification, type MCPServer } from "./server";
 import { registerMCPProtocol } from "./mcp-protocol";
 import { ToolManager, registerToolHandlers } from "./tool-manager";
@@ -14,7 +13,6 @@ import { registerDeviceTools } from "./tools/device-tools";
 import { registerControlTools } from "./tools/control-tools";
 import { getWaveformTools, initWaveformStorage } from "./tools/waveform-tools";
 import { WaveformStorage, loadWaveforms } from "./waveform-storage";
-import { ConfigError, ErrorCode } from "./errors";
 
 /**
  * 应用实例，包含所有核心组件的引用
@@ -228,17 +226,20 @@ export async function startApp(app: App): Promise<void> {
   if (app.server.httpServer) {
     app.wsServer.attachToServer(app.server.httpServer, app.config.port);
   } else {
-    throw new ConfigError("HTTP 服务器未启动，无法附加 WebSocket", {
-      code: ErrorCode.CONFIG_LOAD_FAILED,
-      context: { port: app.config.port },
-    });
+    // 在 stdio 模式下不启动 HTTP 服务器，WS 功能不可用
+    console.log("[服务器] 未启动 HTTP 服务器（可能为 stdio 模式），跳过 WebSocket 附加");
   }
 
   // 打印就绪信息
   console.log("=".repeat(50));
   console.log("服务器就绪");
-  console.log(`SSE: http://localhost:${app.config.port}${app.config.ssePath}`);
-  console.log(`POST: http://localhost:${app.config.port}${app.config.postPath}`);
-  console.log(`WebSocket: ws://localhost:${app.config.port}`);
+  if (app.server.httpServer) {
+    console.log(`SSE: http://localhost:${app.config.port}${app.config.ssePath}`);
+    console.log(`POST: http://localhost:${app.config.port}${app.config.postPath}`);
+    console.log(`HTTP RPC: http://localhost:${app.config.port}${app.config.rpcPath}`);
+    console.log(`WebSocket: ws://localhost:${app.config.port}`);
+  } else {
+    console.log("运行模式: stdio（使用 stdin/stdout 进行 MCP 通信）");
+  }
   console.log("=".repeat(50));
 }

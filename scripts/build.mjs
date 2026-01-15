@@ -36,9 +36,6 @@ await esbuild.build({
   entryPoints: ['src/index.ts'],
   outfile: 'dist/index.js',
 });
-
-// 生成类型声明文件
-console.log('生成类型声明文件...');
 execSync('npx tsc -p tsconfig.build.json --emitDeclarationOnly', { stdio: 'inherit' });
 
 console.log('构建完成！');

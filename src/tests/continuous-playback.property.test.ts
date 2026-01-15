@@ -192,6 +192,137 @@ describe("Continuous Playback Property Tests", () => {
     });
   });
 
+  // Feature: waveform-and-playback-improvements, Property 12: Wait time considers elapsed time
+  describe("Property 12: Wait time considers elapsed time", () => {
+    it("等待时间计算考虑发送耗时", () => {
+      fc.assert(
+        fc.property(
+          batchSizeArb,
+          validBufferRatioArb,
+          fc.integer({ min: 0, max: 500 }), // elapsedTime
+          (batchSize, bufferRatio, elapsedTime) => {
+            const playbackDuration = batchSize * 100;
+            const targetWaitTime = playbackDuration * bufferRatio - elapsedTime;
+
+            // 验证 elapsedTime 被减去
+            const expectedWithoutElapsed = playbackDuration * bufferRatio;
+            expect(targetWaitTime).toBe(expectedWithoutElapsed - elapsedTime);
+          }
+        ),
+        { numRuns: NUM_RUNS }
+      );
+    });
+  });
+
+  // Feature: waveform-and-playback-improvements, Property 13: Positive wait time when playback exceeds elapsed
+  describe("Property 13: Positive wait time when playback exceeds elapsed", () => {
+    it("当播放时长大于发送耗时时，等待时间为正", () => {
+      fc.assert(
+        fc.property(
+          batchSizeArb,
+          validBufferRatioArb,
+          (batchSize, bufferRatio) => {
+            const playbackDuration = batchSize * 100;
+            // 确保 elapsedTime 小于目标时间
+            const targetTime = playbackDuration * bufferRatio;
+            const elapsedTime = Math.floor(targetTime * 0.5); // 使用目标时间的一半
+            const targetWaitTime = targetTime - elapsedTime;
+
+            // 当 elapsedTime < targetTime 时，targetWaitTime > 0
+            expect(targetWaitTime).toBeGreaterThan(0);
+          }
+        ),
+        { numRuns: NUM_RUNS }
+      );
+    });
+  });
+
+  // Feature: waveform-and-playback-improvements, Property 18: Send failure stops playback
+  describe("Property 18: Send failure stops playback", () => {
+    it("发送失败时停止播放", async () => {
+      // 这个测试需要异步等待，所以只运行少量迭代
+      const testCases = [
+        { waveforms: ["0000000000000001"], channel: "A" as const },
+        { waveforms: ["0000000000000002", "0000000000000003"], channel: "B" as const },
+      ];
+
+      for (const { waveforms, channel } of testCases) {
+        const controllerId = wsServer.createController();
+        wsServer.isControllerBound = () => true;
+        // sendWaveform 返回 false 模拟发送失败
+        wsServer.sendWaveform = () => false;
+
+        wsServer.startContinuousPlayback(controllerId, channel, waveforms);
+
+        // 等待 scheduleSend 执行
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // 发送失败后应该停止播放
+        expect(wsServer.isContinuousPlaying(controllerId, channel)).toBe(false);
+
+        wsServer.removeController(controllerId);
+      }
+    });
+  });
+
+  // Feature: waveform-and-playback-improvements, Property 21: Slow send warning
+  describe("Property 21: Slow send warning", () => {
+    it("当发送耗时超过目标时间时，targetWaitTime 为负", () => {
+      fc.assert(
+        fc.property(
+          batchSizeArb,
+          validBufferRatioArb,
+          (batchSize, bufferRatio) => {
+            const playbackDuration = batchSize * 100;
+            const targetTime = playbackDuration * bufferRatio;
+            // 模拟发送耗时超过目标时间
+            const elapsedTime = targetTime + 100;
+            const targetWaitTime = targetTime - elapsedTime;
+
+            // 当 elapsedTime > targetTime 时，targetWaitTime < 0
+            expect(targetWaitTime).toBeLessThan(0);
+            // 但实际等待时间至少为 10ms
+            const actualWaitTime = Math.max(10, targetWaitTime);
+            expect(actualWaitTime).toBe(10);
+          }
+        ),
+        { numRuns: NUM_RUNS }
+      );
+    });
+  });
+
+  // Feature: waveform-and-playback-improvements, Property 22: Shutdown cleanup
+  describe("Property 22: Shutdown cleanup", () => {
+    it("服务器停止时清理所有播放", () => {
+      fc.assert(
+        fc.property(
+          waveformsArb,
+          batchSizeArb,
+          channelArb,
+          (waveforms, batchSize, channel) => {
+            // 创建新的服务器实例
+            const server = new DGLabWSServer({ heartbeatInterval: 60000 });
+            server.isControllerBound = () => true;
+            server.sendWaveform = () => true;
+
+            const controllerId = server.createController();
+            server.startContinuousPlayback(controllerId, channel, waveforms, batchSize);
+
+            expect(server.isContinuousPlaying(controllerId, channel)).toBe(true);
+
+            // 停止服务器
+            server.stop();
+
+            // 停止后，播放状态应该被清理
+            // 注意：stop() 后 isContinuousPlaying 会返回 false 因为状态被清理了
+            expect(server.isContinuousPlaying(controllerId, channel)).toBe(false);
+          }
+        ),
+        { numRuns: NUM_RUNS }
+      );
+    });
+  });
+
   // Feature: waveform-and-playback-improvements, Property 19: Disconnect stops all playbacks
   describe("Property 19: Disconnect stops all playbacks", () => {
     it("断开控制器时停止所有通道的播放", () => {

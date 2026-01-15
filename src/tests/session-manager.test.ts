@@ -955,3 +955,579 @@ describe("Property 4: Session Data Invariance", () => {
       );
     });
   });
+
+
+  /**
+   * Feature: waveform-and-playback-improvements
+   * APP Disconnect Triggers Reconnection Tests
+   * 
+   * Tests for APP disconnect behavior - when APP disconnects, the system should
+   * call handleDisconnection to start reconnection timeout instead of immediately
+   * setting boundToApp to false.
+   * 
+   * Validates: Requirements 10.1-10.4
+   */
+  describe("APP Disconnect Triggers Reconnection", () => {
+    test("APP 断开触发 handleDisconnection 而不是直接解绑", () => {
+      const manager = new SessionManager(5, 5);
+      const session = manager.createSession();
+      const targetId = "app-123";
+
+      // 绑定 APP
+      manager.updateConnectionState(session.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: targetId,
+      });
+
+      // 模拟 APP 断开 - 调用 handleDisconnection
+      const preserved = manager.handleDisconnection(session.deviceId);
+
+      // 验证会话被保留
+      expect(preserved).toBe(true);
+
+      // 验证状态
+      const updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession).not.toBeNull();
+      expect(updatedSession!.boundToApp).toBe(true); // boundToApp 保持为 true
+      expect(updatedSession!.connected).toBe(false); // connected 设置为 false
+      expect(updatedSession!.disconnectedAt).not.toBeNull(); // disconnectedAt 被记录
+      expect(updatedSession!.reconnectionTimeoutId).not.toBeNull(); // 重连超时被启动
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("APP 断开后 boundToApp 保持为 true", () => {
+      const manager = new SessionManager(5, 5);
+      const session = manager.createSession();
+
+      // 绑定 APP
+      manager.updateConnectionState(session.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: "app-456",
+      });
+
+      // 验证绑定状态
+      expect(manager.getSession(session.deviceId)!.boundToApp).toBe(true);
+
+      // APP 断开
+      manager.handleDisconnection(session.deviceId);
+
+      // boundToApp 应该保持为 true
+      const updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession!.boundToApp).toBe(true);
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("APP 断开后 connected 设置为 false", () => {
+      const manager = new SessionManager(5, 5);
+      const session = manager.createSession();
+
+      // 绑定并连接
+      manager.updateConnectionState(session.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: "app-789",
+      });
+
+      // 验证连接状态
+      expect(manager.getSession(session.deviceId)!.connected).toBe(true);
+
+      // APP 断开
+      manager.handleDisconnection(session.deviceId);
+
+      // connected 应该设置为 false
+      const updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession!.connected).toBe(false);
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("APP 断开后 disconnectedAt 被记录", () => {
+      const manager = new SessionManager(5, 5);
+      const session = manager.createSession();
+
+      // 绑定 APP
+      manager.updateConnectionState(session.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: "app-abc",
+      });
+
+      // 验证初始状态
+      expect(manager.getSession(session.deviceId)!.disconnectedAt).toBeNull();
+
+      // 记录断开前的时间
+      const beforeDisconnect = new Date();
+
+      // APP 断开
+      manager.handleDisconnection(session.deviceId);
+
+      // disconnectedAt 应该被记录
+      const updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession!.disconnectedAt).not.toBeNull();
+      expect(updatedSession!.disconnectedAt!.getTime()).toBeGreaterThanOrEqual(beforeDisconnect.getTime());
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("APP 断开后重连超时被启动", () => {
+      const manager = new SessionManager(5, 5);
+      const session = manager.createSession();
+
+      // 绑定 APP
+      manager.updateConnectionState(session.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: "app-def",
+      });
+
+      // 验证初始状态
+      expect(manager.getSession(session.deviceId)!.reconnectionTimeoutId).toBeNull();
+
+      // APP 断开
+      manager.handleDisconnection(session.deviceId);
+
+      // reconnectionTimeoutId 应该不为 null
+      const updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession!.reconnectionTimeoutId).not.toBeNull();
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+
+    test("多个设备同时 APP 断开", () => {
+      const manager = new SessionManager(5, 5);
+      const appId = "shared-app-123";
+
+      // 创建多个会话并绑定到同一个 APP
+      const session1 = manager.createSession();
+      const session2 = manager.createSession();
+      const session3 = manager.createSession();
+
+      manager.updateConnectionState(session1.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: appId,
+      });
+      manager.updateConnectionState(session2.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: appId,
+      });
+      manager.updateConnectionState(session3.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: appId,
+      });
+
+      // 模拟 APP 断开 - 对所有绑定到该 APP 的设备调用 handleDisconnection
+      const sessions = manager.listSessions();
+      for (const s of sessions) {
+        if (s.targetId === appId) {
+          manager.handleDisconnection(s.deviceId);
+        }
+      }
+
+      // 验证所有会话都被正确处理
+      for (const deviceId of [session1.deviceId, session2.deviceId, session3.deviceId]) {
+        const updatedSession = manager.getSession(deviceId);
+        expect(updatedSession).not.toBeNull();
+        expect(updatedSession!.boundToApp).toBe(true);
+        expect(updatedSession!.connected).toBe(false);
+        expect(updatedSession!.disconnectedAt).not.toBeNull();
+        expect(updatedSession!.reconnectionTimeoutId).not.toBeNull();
+      }
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    });
+  });
+
+
+  /**
+   * Feature: waveform-and-playback-improvements
+   * Property 24: APP disconnect triggers reconnection
+   * 
+   * For any bound device session, when APP disconnects, handleDisconnection
+   * should be called to start reconnection timeout
+   * 
+   * Validates: Requirements 10.1
+   */
+  describe("Property 24: APP disconnect triggers reconnection", () => {
+    // Feature: waveform-and-playback-improvements, Property 24: APP disconnect triggers reconnection
+    test("属性测试：所有已绑定设备 APP 断开后都应触发重连机制", () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 60 }), // reconnection timeout
+          fc.string({ minLength: 5, maxLength: 20 }), // targetId (APP ID)
+          (timeout, targetId) => {
+            const manager = new SessionManager(5, timeout);
+            const session = manager.createSession();
+
+            // 绑定 APP
+            manager.updateConnectionState(session.deviceId, {
+              boundToApp: true,
+              connected: true,
+              targetId: targetId,
+            });
+
+            // 模拟 APP 断开 - 调用 handleDisconnection
+            const preserved = manager.handleDisconnection(session.deviceId);
+
+            // 验证重连机制被触发
+            const updatedSession = manager.getSession(session.deviceId);
+            const reconnectionTriggered =
+              preserved === true &&
+              updatedSession !== null &&
+              updatedSession.reconnectionTimeoutId !== null;
+
+            manager.stopCleanupTimer();
+            manager.clearAll();
+
+            return reconnectionTriggered;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  /**
+   * Feature: waveform-and-playback-improvements
+   * Property 25: APP disconnect preserves bound state
+   * 
+   * For any bound device session, when APP disconnects, boundToApp should remain true
+   * 
+   * Validates: Requirements 10.2
+   */
+  describe("Property 25: APP disconnect preserves bound state", () => {
+    // Feature: waveform-and-playback-improvements, Property 25: APP disconnect preserves bound state
+    test("属性测试：所有已绑定设备 APP 断开后 boundToApp 保持为 true", () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 60 }), // reconnection timeout
+          fc.string({ minLength: 5, maxLength: 20 }), // targetId (APP ID)
+          fc.string({ minLength: 1, maxLength: 30 }), // alias
+          (timeout, targetId, alias) => {
+            const manager = new SessionManager(5, timeout);
+            const session = manager.createSession();
+
+            // 设置会话数据
+            manager.setAlias(session.deviceId, alias);
+            manager.updateConnectionState(session.deviceId, {
+              boundToApp: true,
+              connected: true,
+              targetId: targetId,
+            });
+
+            // 验证绑定状态
+            const beforeDisconnect = manager.getSession(session.deviceId);
+            if (!beforeDisconnect || !beforeDisconnect.boundToApp) {
+              manager.stopCleanupTimer();
+              manager.clearAll();
+              return false;
+            }
+
+            // APP 断开
+            manager.handleDisconnection(session.deviceId);
+
+            // 验证 boundToApp 保持为 true
+            const afterDisconnect = manager.getSession(session.deviceId);
+            const boundStatePreserved =
+              afterDisconnect !== null && afterDisconnect.boundToApp === true;
+
+            manager.stopCleanupTimer();
+            manager.clearAll();
+
+            return boundStatePreserved;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  /**
+   * Feature: waveform-and-playback-improvements
+   * Property 26: APP disconnect sets connected false
+   * 
+   * For any device session, when APP disconnects, connected should be set to false
+   * 
+   * Validates: Requirements 10.3
+   */
+  describe("Property 26: APP disconnect sets connected false", () => {
+    // Feature: waveform-and-playback-improvements, Property 26: APP disconnect sets connected false
+    test("属性测试：所有设备 APP 断开后 connected 设置为 false", () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 60 }), // reconnection timeout
+          fc.string({ minLength: 5, maxLength: 20 }), // targetId (APP ID)
+          fc.integer({ min: 0, max: 200 }), // strengthA
+          fc.integer({ min: 0, max: 200 }), // strengthB
+          (timeout, targetId, strengthA, strengthB) => {
+            const manager = new SessionManager(5, timeout);
+            const session = manager.createSession();
+
+            // 设置会话数据
+            manager.updateStrength(session.deviceId, strengthA, strengthB, 200, 200);
+            manager.updateConnectionState(session.deviceId, {
+              boundToApp: true,
+              connected: true,
+              targetId: targetId,
+            });
+
+            // 验证连接状态
+            const beforeDisconnect = manager.getSession(session.deviceId);
+            if (!beforeDisconnect || !beforeDisconnect.connected) {
+              manager.stopCleanupTimer();
+              manager.clearAll();
+              return false;
+            }
+
+            // APP 断开
+            manager.handleDisconnection(session.deviceId);
+
+            // 验证 connected 设置为 false
+            const afterDisconnect = manager.getSession(session.deviceId);
+            const connectedSetFalse =
+              afterDisconnect !== null && afterDisconnect.connected === false;
+
+            manager.stopCleanupTimer();
+            manager.clearAll();
+
+            return connectedSetFalse;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  /**
+   * Feature: waveform-and-playback-improvements
+   * Property 27: APP disconnect records timestamp
+   * 
+   * For any device session, when APP disconnects, disconnectedAt should be set to current timestamp
+   * 
+   * Validates: Requirements 10.4
+   */
+  describe("Property 27: APP disconnect records timestamp", () => {
+    // Feature: waveform-and-playback-improvements, Property 27: APP disconnect records timestamp
+    test("属性测试：所有设备 APP 断开后 disconnectedAt 被记录", () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 60 }), // reconnection timeout
+          fc.string({ minLength: 5, maxLength: 20 }), // targetId (APP ID)
+          (timeout, targetId) => {
+            const manager = new SessionManager(5, timeout);
+            const session = manager.createSession();
+
+            // 绑定 APP
+            manager.updateConnectionState(session.deviceId, {
+              boundToApp: true,
+              connected: true,
+              targetId: targetId,
+            });
+
+            // 验证初始状态
+            const beforeDisconnect = manager.getSession(session.deviceId);
+            if (!beforeDisconnect || beforeDisconnect.disconnectedAt !== null) {
+              manager.stopCleanupTimer();
+              manager.clearAll();
+              return false;
+            }
+
+            // 记录断开前的时间
+            const beforeTime = Date.now();
+
+            // APP 断开
+            manager.handleDisconnection(session.deviceId);
+
+            // 记录断开后的时间
+            const afterTime = Date.now();
+
+            // 验证 disconnectedAt 被记录
+            const afterDisconnect = manager.getSession(session.deviceId);
+            const timestampRecorded =
+              afterDisconnect !== null &&
+              afterDisconnect.disconnectedAt !== null &&
+              afterDisconnect.disconnectedAt.getTime() >= beforeTime &&
+              afterDisconnect.disconnectedAt.getTime() <= afterTime;
+
+            manager.stopCleanupTimer();
+            manager.clearAll();
+
+            return timestampRecorded;
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+
+  /**
+   * Feature: waveform-and-playback-improvements
+   * Integration Tests for APP Disconnect Reconnection Flow
+   * 
+   * Tests the complete flow of APP disconnect → reconnection timeout → session recovery/deletion
+   * 
+   * Validates: Requirements 10.5
+   */
+  describe("APP Disconnect Integration Tests", () => {
+    test("APP 断开 → 重连超时内重连 → 恢复会话", async () => {
+      // 使用短超时便于测试
+      const manager = new SessionManager(5, 0.05); // 0.05 分钟 = 3 秒
+      const session = manager.createSession();
+      const targetId = "app-integration-1";
+
+      // 绑定 APP
+      manager.updateConnectionState(session.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: targetId,
+      });
+
+      // 设置一些会话数据
+      manager.setAlias(session.deviceId, "test-device");
+      manager.updateStrength(session.deviceId, 100, 150, 180, 190);
+
+      // APP 断开
+      manager.handleDisconnection(session.deviceId);
+
+      // 验证断开状态
+      let updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession).not.toBeNull();
+      expect(updatedSession!.connected).toBe(false);
+      expect(updatedSession!.boundToApp).toBe(true);
+      expect(updatedSession!.reconnectionTimeoutId).not.toBeNull();
+
+      // 在超时前重连（等待 1 秒）
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // 模拟重连
+      const mockWs = {} as WebSocket;
+      const newClientId = "new-client-integration-1";
+      const success = manager.handleReconnection(session.deviceId, mockWs, newClientId);
+
+      expect(success).toBe(true);
+
+      // 验证恢复状态
+      updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession).not.toBeNull();
+      expect(updatedSession!.connected).toBe(true);
+      expect(updatedSession!.reconnectionTimeoutId).toBeNull();
+      expect(updatedSession!.disconnectedAt).toBeNull();
+      expect(updatedSession!.ws).toBe(mockWs);
+      expect(updatedSession!.clientId).toBe(newClientId);
+
+      // 验证会话数据保留
+      expect(updatedSession!.alias).toBe("test-device");
+      expect(updatedSession!.strengthA).toBe(100);
+      expect(updatedSession!.strengthB).toBe(150);
+      expect(updatedSession!.strengthLimitA).toBe(180);
+      expect(updatedSession!.strengthLimitB).toBe(190);
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    }, 10000);
+
+    test("APP 断开 → 超时 → 会话删除", async () => {
+      // 使用非常短的超时便于测试
+      const manager = new SessionManager(5, 0.05); // 0.05 分钟 = 3 秒
+      const session = manager.createSession();
+      const targetId = "app-integration-2";
+
+      // 绑定 APP
+      manager.updateConnectionState(session.deviceId, {
+        boundToApp: true,
+        connected: true,
+        targetId: targetId,
+      });
+
+      // APP 断开
+      manager.handleDisconnection(session.deviceId);
+
+      // 验证断开状态
+      let updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession).not.toBeNull();
+      expect(updatedSession!.reconnectionTimeoutId).not.toBeNull();
+
+      // 等待超时（3 秒 + 缓冲）
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      // 验证会话已被删除
+      updatedSession = manager.getSession(session.deviceId);
+      expect(updatedSession).toBeNull();
+
+      manager.stopCleanupTimer();
+    }, 10000);
+
+    test("多个设备同时 APP 断开 → 部分重连 → 部分超时", async () => {
+      // 使用短超时便于测试
+      const manager = new SessionManager(5, 0.05); // 0.05 分钟 = 3 秒
+      const appId = "shared-app-integration";
+
+      // 创建 3 个会话并绑定到同一个 APP
+      const session1 = manager.createSession();
+      const session2 = manager.createSession();
+      const session3 = manager.createSession();
+
+      for (const s of [session1, session2, session3]) {
+        manager.updateConnectionState(s.deviceId, {
+          boundToApp: true,
+          connected: true,
+          targetId: appId,
+        });
+      }
+
+      // 模拟 APP 断开 - 对所有绑定到该 APP 的设备调用 handleDisconnection
+      const sessions = manager.listSessions();
+      for (const s of sessions) {
+        if (s.targetId === appId) {
+          manager.handleDisconnection(s.deviceId);
+        }
+      }
+
+      // 验证所有会话都处于断开状态
+      for (const deviceId of [session1.deviceId, session2.deviceId, session3.deviceId]) {
+        const s = manager.getSession(deviceId);
+        expect(s).not.toBeNull();
+        expect(s!.connected).toBe(false);
+        expect(s!.reconnectionTimeoutId).not.toBeNull();
+      }
+
+      // 等待 1 秒后，只重连 session1
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const mockWs1 = {} as WebSocket;
+      manager.handleReconnection(session1.deviceId, mockWs1, "client-1");
+
+      // 验证 session1 已重连
+      let s1 = manager.getSession(session1.deviceId);
+      expect(s1).not.toBeNull();
+      expect(s1!.connected).toBe(true);
+
+      // 等待超时（再等 3 秒）
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      // 验证 session1 仍然存在（已重连）
+      s1 = manager.getSession(session1.deviceId);
+      expect(s1).not.toBeNull();
+      expect(s1!.connected).toBe(true);
+
+      // 验证 session2 和 session3 已被删除（超时）
+      expect(manager.getSession(session2.deviceId)).toBeNull();
+      expect(manager.getSession(session3.deviceId)).toBeNull();
+
+      manager.stopCleanupTimer();
+      manager.clearAll();
+    }, 15000);
+  });

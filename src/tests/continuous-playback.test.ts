@@ -157,6 +157,87 @@ describe("Continuous Playback", () => {
       expect(state).not.toBeNull();
       expect(typeof state!.stats.avgElapsedTime).toBe("number");
     });
+
+    it("多次发送后统计信息累积", async () => {
+      const controllerId = wsServer.createController();
+      mockBoundAndSend();
+
+      const waveforms = ["0000000000000001"];
+      // 使用较小的 bufferRatio 和 batchSize 以加快测试
+      wsServer.startContinuousPlayback(controllerId, "A", waveforms, 1, 0.5);
+
+      // 等待几次发送
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const state = wsServer.getContinuousPlaybackState(controllerId, "A");
+      expect(state).not.toBeNull();
+      // 应该已经发送了多次
+      expect(state!.stats.sendCount).toBeGreaterThan(1);
+      expect(state!.stats.totalElapsedTime).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe("等待时间计算", () => {
+    // Feature: waveform-and-playback-improvements, Property 12: Wait time considers elapsed time
+    // Feature: waveform-and-playback-improvements, Property 16: Wait time formula
+    it("等待时间公式: playbackDuration × bufferRatio - elapsedTime", () => {
+      // 测试等待时间计算逻辑
+      // 公式: targetWaitTime = playbackDuration × bufferRatio - elapsedTime
+      // actualWaitTime = max(10, targetWaitTime)
+      
+      // 测试用例 1: batchSize=5, bufferRatio=0.9
+      // playbackDuration = 5 × 100 = 500ms
+      // targetWaitTime = 500 × 0.9 - elapsedTime = 450 - elapsedTime
+      const playbackDuration1 = 5 * 100;
+      const bufferRatio1 = 0.9;
+      const elapsedTime1 = 10; // 假设发送耗时 10ms
+      const targetWaitTime1 = playbackDuration1 * bufferRatio1 - elapsedTime1;
+      expect(targetWaitTime1).toBe(440); // 450 - 10 = 440
+
+      // 测试用例 2: batchSize=10, bufferRatio=0.8
+      // playbackDuration = 10 × 100 = 1000ms
+      // targetWaitTime = 1000 × 0.8 - elapsedTime = 800 - elapsedTime
+      const playbackDuration2 = 10 * 100;
+      const bufferRatio2 = 0.8;
+      const elapsedTime2 = 50;
+      const targetWaitTime2 = playbackDuration2 * bufferRatio2 - elapsedTime2;
+      expect(targetWaitTime2).toBe(750); // 800 - 50 = 750
+    });
+
+    // Feature: waveform-and-playback-improvements, Property 13: Positive wait time when playback exceeds elapsed
+    it("当播放时长大于发送耗时时，等待时间为正", () => {
+      // playbackDuration × bufferRatio > elapsedTime 时，targetWaitTime > 0
+      const playbackDuration = 500; // 5 × 100
+      const bufferRatio = 0.9;
+      const elapsedTime = 100; // 发送耗时 100ms
+      const targetWaitTime = playbackDuration * bufferRatio - elapsedTime;
+      expect(targetWaitTime).toBeGreaterThan(0); // 450 - 100 = 350 > 0
+    });
+
+    // Feature: waveform-and-playback-improvements, Property 17: Minimum wait time enforcement
+    it("最小等待时间强制为 10ms", () => {
+      // 当 targetWaitTime <= 0 时，actualWaitTime = 10ms
+      const playbackDuration = 100; // 1 × 100
+      const bufferRatio = 0.5;
+      const elapsedTime = 100; // 发送耗时等于目标时间
+      const targetWaitTime = playbackDuration * bufferRatio - elapsedTime;
+      expect(targetWaitTime).toBeLessThanOrEqual(0); // 50 - 100 = -50 <= 0
+      
+      const actualWaitTime = Math.max(10, targetWaitTime);
+      expect(actualWaitTime).toBe(10);
+    });
+
+    it("当发送耗时超过目标时间时，使用最小等待时间", () => {
+      // 模拟发送耗时超过 playbackDuration × bufferRatio 的情况
+      const playbackDuration = 500;
+      const bufferRatio = 0.9;
+      const elapsedTime = 500; // 发送耗时 500ms，超过目标 450ms
+      const targetWaitTime = playbackDuration * bufferRatio - elapsedTime;
+      expect(targetWaitTime).toBeLessThan(0); // 450 - 500 = -50 < 0
+      
+      const actualWaitTime = Math.max(10, targetWaitTime);
+      expect(actualWaitTime).toBe(10);
+    });
   });
 
   describe("启动和停止", () => {

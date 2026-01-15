@@ -21,7 +21,6 @@ import { createToolResult, createToolError } from "../tool-manager";
 import type { SessionManager } from "../session-manager";
 import type { DGLabWSServer } from "../ws-server";
 import { getWaveformStorage } from "./waveform-tools";
-import { ToolError, ConnectionError, ErrorCode } from "../errors";
 
 /** 
  * 强度调节模式
@@ -525,13 +524,6 @@ export function registerControlTools(
 - deviceId 或 alias: 设备标识（二选一，deviceId优先）
 - channel: A或B通道
 - waveforms 或 waveformName: 波形数据来源（二选一）
-- batchSize: 每次发送的波形数量，默认5（播放时长 = batchSize × 100ms）
-- bufferRatio: 缓冲比例（0.5-1.0），默认0.9，用于计算等待时间
-
-时序机制：
-- 播放时长 = batchSize × 100ms
-- 等待时间 = 播放时长 × bufferRatio - 发送耗时
-- 最小等待时间 = 10ms
 
 与 dg_send_waveform 的区别：
 - dg_send_waveform: 一次性发送，播放完毕后停止
@@ -551,18 +543,6 @@ export function registerControlTools(
         waveformName: {
           type: "string",
           description: "已保存的波形名称。与waveforms二选一",
-        },
-        batchSize: {
-          type: "number",
-          minimum: 1,
-          maximum: 20,
-          description: "每次发送的波形数量，默认5（播放时长 = batchSize × 100ms）",
-        },
-        bufferRatio: {
-          type: "number",
-          minimum: 0.5,
-          maximum: 1.0,
-          description: "缓冲比例（0.5-1.0），默认0.9，用于计算等待时间",
         },
       },
       required: ["channel"],
@@ -614,9 +594,9 @@ export function registerControlTools(
         return createToolError("设备未绑定APP");
       }
 
-      // 获取可选参数
-      const batchSize = typeof params.batchSize === "number" ? params.batchSize : 5;
-      const bufferRatio = typeof params.bufferRatio === "number" ? params.bufferRatio : 0.9;
+      // 使用内部默认值（不暴露给 AI）
+      const batchSize = 5;
+      const bufferRatio = 0.9;
 
       // 启动持续播放
       const success = wsServer.startContinuousPlayback(
@@ -642,8 +622,6 @@ export function registerControlTools(
           deviceId: session.deviceId,
           channel,
           waveformCount: waveforms.length,
-          batchSize,
-          bufferRatio,
           playbackDuration,
           source: rawWaveforms ? "direct" : `waveform:${waveformName}`,
         })

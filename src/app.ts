@@ -164,12 +164,10 @@ function createWSServer(config: ServerConfig, sessionManager: SessionManager): D
       const sessions = sessionManager.listSessions();
       for (const session of sessions) {
         if (session.targetId === appId) {
-          // APP 断开时，更新状态
-          // 注意：控制器可能还在连接，所以只更新 boundToApp 和 targetId
-          sessionManager.updateConnectionState(session.deviceId, {
-            boundToApp: false,
-            targetId: null,
-          });
+          // APP 断开时，使用 handleDisconnection 启动重连超时机制
+          // 这会保留 boundToApp 为 true，设置 connected 为 false，
+          // 记录 disconnectedAt 时间戳，并启动重连超时计时器
+          sessionManager.handleDisconnection(session.deviceId);
         }
       }
     },

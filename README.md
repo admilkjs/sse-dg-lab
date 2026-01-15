@@ -155,7 +155,7 @@ PORT=8080 npx dg-lab-mcp
 ### 波形管理
 | 工具 | 说明 |
 |------|------|
-| `dg_parse_waveform` | 解析 DungeonLab+pulse 格式波形并保存 |
+| `dg_parse_waveform` | 解析 DungeonLab+pulse 格式波形，可选保存 |
 | `dg_list_waveforms` | 列出所有已保存的波形 |
 | `dg_get_waveform` | 获取波形详情和 hexWaveforms |
 | `dg_delete_waveform` | 删除已保存的波形 |

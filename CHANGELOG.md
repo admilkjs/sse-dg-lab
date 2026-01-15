@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/admilkjs/sse-dg-lab/compare/v1.2.0...v1.2.1) (2026-01-15)
+
+
+### 🔧 其他更新
+
+* skip version 1.2.0 (previously unpublished) ([c207453](https://github.com/admilkjs/sse-dg-lab/commit/c207453f5e1e02744f45ddcef514b3d0af9f73e7))
+
 ## [1.2.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.0...v1.2.0) (2026-01-15)
 
 

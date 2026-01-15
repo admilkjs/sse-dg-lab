@@ -6,6 +6,11 @@
 
 import { createApp, startApp } from "./app.js";
 
+// CLI 入口默认使用 stdio 模式（除非显式设置了 MCP_TRANSPORT）
+if (!process.env.MCP_TRANSPORT) {
+  process.env.MCP_TRANSPORT = "stdio";
+}
+
 /**
  * CLI 主函数
  */

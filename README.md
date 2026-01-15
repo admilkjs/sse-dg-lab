@@ -16,10 +16,10 @@
 
 ```bash
 # 全局安装
-npm install -g dg-lab-mcpr
+npm install -g dg-lab-mcp
 
 # 或使用 npx 直接运行
-npx dg-lab-mcpr
+npx dg-lab-mcp
 ```
 
 ## 快速开始

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/admilkjs/sse-dg-lab/compare/v1.4.0...v1.4.1) (2026-01-15)
+
+
+### 🐛 错误修复
+
+* test文件错误 ([d4e6a4e](https://github.com/admilkjs/sse-dg-lab/commit/d4e6a4ec6344376edeb16322d93017356955bb2f))
+
 ## [1.4.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.3.0...v1.4.0) (2026-01-15)
 
 

@@ -55,7 +55,7 @@ export function registerDeviceTools(
   toolManager.registerTool(
     "dg_connect",
     `【第一步】创建DG-LAB设备连接。返回deviceId（后续操作必需）和qrCodeUrl（二维码链接）。
-使用流程：1.调用此工具获取二维码 → 2.生成二维码后让用户用DG-LAB APP扫码 → 3.用户说扫了码后用dg_get_status检查boundToApp是否为true → 4.boundToApp为true后才能控制设备。
+使用流程：1.调用此工具获取二维码的链接，然后如果有工具能生成二维码则使用 → 2.生成二维码后让用户用DG-LAB APP扫码 → 3.用户说扫了码后用dg_get_status检查boundToApp是否为true → 4.boundToApp为true后才能控制设备。
 注意：每次调用会创建新连接，建议先用dg_list_devices检查是否已有可用连接是属于用户的。`,
     {
       type: "object",

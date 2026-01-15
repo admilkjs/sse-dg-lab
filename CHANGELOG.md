@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.3.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.2.0...v1.3.0) (2026-01-15)
+
+
+### ✨ 新功能
+
+* 支持更多mcp协议，完善调用 ([d23c2b2](https://github.com/admilkjs/sse-dg-lab/commit/d23c2b20fe96ea298330002a6b49d7e41b774695))
+
+
+### 🐛 错误修复
+
+* 升级 Node.js 到 24.x 以支持 npm OIDC 可信发布 ([e164a68](https://github.com/admilkjs/sse-dg-lab/commit/e164a681aaaa9d0062c962c2fb4735738ba93a34))
+
+
+### 🔧 其他更新
+
+* release 1.1.0 ([3c12d8d](https://github.com/admilkjs/sse-dg-lab/commit/3c12d8d74439d1037ca047bf16e72f36cf492619))
+* release 1.1.0 ([84f7497](https://github.com/admilkjs/sse-dg-lab/commit/84f7497673e90f781705e4695960f7eb316624d9))
+* release 1.2.0 ([2d35777](https://github.com/admilkjs/sse-dg-lab/commit/2d35777c4eedec78ec50708886c6a374a6d0ca32))
+* release 1.2.0 ([bcd8aec](https://github.com/admilkjs/sse-dg-lab/commit/bcd8aecda987583fff652b24640f30a07cfb93ff))
+* release 1.3.0 ([d4a38e4](https://github.com/admilkjs/sse-dg-lab/commit/d4a38e49109f6f9bea9f3d3c62312194d570a648))
+* release 1.3.0 ([9a0ed42](https://github.com/admilkjs/sse-dg-lab/commit/9a0ed422fc5bb52943f0d8611f5c0d9d053dfc43))
+* release 1.3.1 ([3945304](https://github.com/admilkjs/sse-dg-lab/commit/39453048c353b60477f77d184cd575bbbb413f99))
+* release 1.3.1 ([f36d104](https://github.com/admilkjs/sse-dg-lab/commit/f36d10472f5e1ab60e576b2a87367c2a9d37c2d0))
+* release 1.3.2 ([fc96068](https://github.com/admilkjs/sse-dg-lab/commit/fc960689d958a1723971ff4cbf00651168c4efd9))
+* release 1.3.2 ([0c7828a](https://github.com/admilkjs/sse-dg-lab/commit/0c7828a80f7589c3c5214000e65dcbe854ef1b94))
+* release trigger ([dd34c75](https://github.com/admilkjs/sse-dg-lab/commit/dd34c758077e0238d549564385c5b4c50e5eb32c))
+* trigger release publish ([954b738](https://github.com/admilkjs/sse-dg-lab/commit/954b738b878bc0d809bd8ee02e3c0423b61f710a))
+* trigger release publish ([5a93d97](https://github.com/admilkjs/sse-dg-lab/commit/5a93d975b17d368f0e28886d144a8ed5cd2a1950))
+* trigger release publish ([b732338](https://github.com/admilkjs/sse-dg-lab/commit/b7323383ba6b79aa324fe96f293be4276a1e9d97))
+
+
+### 🎡 持续集成
+
+* OIDC ([82f1d0e](https://github.com/admilkjs/sse-dg-lab/commit/82f1d0ef973d90ad3bb5378ff95112a4b550f50f))
+
 ## [1.2.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.1.0...v1.2.0) (2026-01-15)
 
 

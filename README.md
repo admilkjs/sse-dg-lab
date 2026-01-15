@@ -16,10 +16,10 @@
 
 ```bash
 # 全局安装
-npm install -g dg-lab-mcp-sse-server
+npm install -g dg-lab-mcpr
 
 # 或使用 npx 直接运行
-npx dg-lab-mcp-sse-server
+npx dg-lab-mcpr
 ```
 
 ## 快速开始
@@ -28,13 +28,13 @@ npx dg-lab-mcp-sse-server
 
 ```bash
 # 使用默认配置
-npx dg-lab-mcp-sse-server
+npx dg-lab-mcpr
 
 # 设置公网 IP
-PUBLIC_IP=1.2.3.4 npx dg-lab-mcp-sse-server
+PUBLIC_IP=1.2.3.4 npx dg-lab-mcpr
 
 # 设置端口
-PORT=8080 npx dg-lab-mcp-sse-server
+PORT=8080 npx dg-lab-mcpr
 ```
 
 ### 配置 MCP 客户端
@@ -46,7 +46,7 @@ PORT=8080 npx dg-lab-mcp-sse-server
   "mcpServers": {
     "dg-lab": {
       "command": "npx",
-      "args": ["dg-lab-mcp-sse-server"],
+      "args": ["dg-lab-mcpr"],
       "env": {
         "PUBLIC_IP": "你的公网IP"
       }
@@ -66,7 +66,7 @@ PORT=8080 npx dg-lab-mcp-sse-server
   "mcpServers": {
     "dg-lab": {
       "command": "npx",
-      "args": ["dg-lab-mcp-sse-server"],
+      "args": ["dg-lab-mcpr"],
       "env": {
         "PUBLIC_IP": "your.public.ip",
         "PORT": "3323",

@@ -46,7 +46,7 @@ PORT=8080 npx dg-lab-mcp
   "mcpServers": {
     "dg-lab": {
       "command": "npx",
-      "args": ["dg-lab-mcpr"],
+      "args": ["dg-lab-mcp"],
       "env": {
         "PUBLIC_IP": "你的公网IP"
       }
@@ -66,7 +66,7 @@ PORT=8080 npx dg-lab-mcp
   "mcpServers": {
     "dg-lab": {
       "command": "npx",
-      "args": ["dg-lab-mcpr"],
+      "args": ["dg-lab-mcp"],
       "env": {
         "PUBLIC_IP": "your.public.ip",
         "PORT": "3323",

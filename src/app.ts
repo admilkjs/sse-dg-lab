@@ -215,19 +215,21 @@ function registerProtocolAndTools(
  * 启动应用
  * 
  * 启动 HTTP 服务器并附加 WebSocket 服务器。
+ * 在 stdio 模式下，WebSocket 服务器独立启动。
  * 
  * @param app - 应用实例
  */
 export async function startApp(app: App): Promise<void> {
-  // 启动 HTTP 服务器
+  // 启动 HTTP 服务器（或 stdio 桥接）
   await app.server.start();
 
-  // 将 WebSocket 服务器附加到 HTTP 服务器
+  // 将 WebSocket 服务器附加到 HTTP 服务器或独立启动
   if (app.server.httpServer) {
+    // SSE/HTTP 模式：附加到 HTTP 服务器，共享端口
     app.wsServer.attachToServer(app.server.httpServer, app.config.port);
   } else {
-    // 在 stdio 模式下不启动 HTTP 服务器，WS 功能不可用
-    console.log("[服务器] 未启动 HTTP 服务器（可能为 stdio 模式），跳过 WebSocket 附加");
+    // stdio 模式：独立启动 WebSocket 服务器
+    app.wsServer.start(app.config.port);
   }
 
   // 打印就绪信息
@@ -240,6 +242,7 @@ export async function startApp(app: App): Promise<void> {
     console.log(`WebSocket: ws://localhost:${app.config.port}`);
   } else {
     console.log("运行模式: stdio（使用 stdin/stdout 进行 MCP 通信）");
+    console.log(`WebSocket: ws://localhost:${app.config.port}`);
   }
   console.log("=".repeat(50));
 }

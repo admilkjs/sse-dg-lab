@@ -112,17 +112,18 @@ export class DGLabWSServer {
   }
 
   /** 启动独立的 WebSocket 服务器（使用独立端口） */
-  start(): void {
-    if (!this.options.port) {
+  start(port?: number): void {
+    const usePort = port ?? this.options.port;
+    if (!usePort) {
       throw new Error("独立启动需要指定 port");
     }
-    this.wss = new WebSocketServer({ port: this.options.port });
+    this.wss = new WebSocketServer({ port: usePort });
     this.wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       this.handleConnection(ws, req);
     });
     this.startHeartbeat();
-    this.attachedPort = this.options.port;
-    console.log(`[WS 服务器] 独立监听端口 ${this.options.port}`);
+    this.attachedPort = usePort;
+    console.log(`[WS 服务器] 独立监听端口 ${usePort}`);
   }
 
   /** 附加到现有的 HTTP 服务器（共享端口） */

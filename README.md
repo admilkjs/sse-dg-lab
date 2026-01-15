@@ -28,13 +28,13 @@ npx dg-lab-mcp
 
 ```bash
 # 使用默认配置
-npx dg-lab-mcpr
+npx dg-lab-mcp
 
 # 设置公网 IP
-PUBLIC_IP=1.2.3.4 npx dg-lab-mcpr
+PUBLIC_IP=1.2.3.4 npx dg-lab-mcp
 
 # 设置端口
-PORT=8080 npx dg-lab-mcpr
+PORT=8080 npx dg-lab-mcp
 ```
 
 ### 配置 MCP 客户端

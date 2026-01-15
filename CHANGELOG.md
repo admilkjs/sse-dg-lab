@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.2.1...v1.3.0) (2026-01-15)
+
+
+### ✨ 新功能
+
+* **logger:** 增强日志模块，添加日志级别和 logger 对象 ([1109320](https://github.com/admilkjs/sse-dg-lab/commit/110932036dd2a9d8dae1508eee0737b047dde4e1))
+
+
+### 🐛 错误修复
+
+* CLI 入口默认使用 stdio 模式 ([f9136a4](https://github.com/admilkjs/sse-dg-lab/commit/f9136a41429f7deeff54df90c2d01a45cfd03a2a))
+
+
+### ♻️ 代码重构
+
+* 简化 logger 模块 ([61713b1](https://github.com/admilkjs/sse-dg-lab/commit/61713b19d1576434790cc638ccdd6d953befa43e))
+
 ## [1.2.1](https://github.com/admilkjs/sse-dg-lab/compare/v1.2.0...v1.2.1) (2026-01-15)
 
 

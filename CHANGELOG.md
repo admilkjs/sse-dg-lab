@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.3.0...v1.4.0) (2026-01-15)
+
+
+### ✨ 新功能
+
+* APP断开重连机制修复与持续播放测试完善 ([de8b755](https://github.com/admilkjs/sse-dg-lab/commit/de8b7556c1997adc49c4f7689611271fecc37c41))
+* **session-manager:** 添加别名唯一性验证和重连状态管理 ([e9c51a0](https://github.com/admilkjs/sse-dg-lab/commit/e9c51a0c8344e5ba54ed52c27033a1b998bcfe70))
+
+
+### 🐛 错误修复
+
+* APP断开时不触发onBindChange，保留boundToApp状态 ([3ab903e](https://github.com/admilkjs/sse-dg-lab/commit/3ab903ed11cf0b5b93b63edf0b02f02cbb3f2d1b))
+* APP重连时调用handleReconnection恢复会话状态 ([981c3a2](https://github.com/admilkjs/sse-dg-lab/commit/981c3a2c7e6d2bf56feffbc7575a5a760e0b73b7))
+* 改下说明 ([97d03ba](https://github.com/admilkjs/sse-dg-lab/commit/97d03bac27468c441b6d2e9ec13a21eb2618db58))
+
+
+### 📝 文档更新
+
+* 更新文档 ([b26c863](https://github.com/admilkjs/sse-dg-lab/commit/b26c863a33993ec1d0fbe878acd05425ce912e7a))
+* 错字 ([31c3745](https://github.com/admilkjs/sse-dg-lab/commit/31c3745e6945aad302e460d0ea34f3fd9aab7711))
+
 ## [1.3.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.2.1...v1.3.0) (2026-01-15)
 
 

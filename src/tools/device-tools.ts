@@ -56,16 +56,34 @@ export function registerDeviceTools(
     "dg_connect",
     `【第一步】创建DG-LAB设备连接。返回deviceId（后续操作必需）和qrCodeUrl（二维码链接）。
 使用流程：1.调用此工具获取二维码的链接，然后如果有工具能生成二维码则使用 → 2.生成二维码后让用户用DG-LAB APP扫码 → 3.用户说扫了码后用dg_get_status检查boundToApp是否为true → 4.boundToApp为true后才能控制设备。
+可选参数alias：创建时直接设置别名（必须唯一，大小写不敏感）。
 注意：每次调用会创建新连接，建议先用dg_list_devices检查是否已有可用连接是属于用户的。`,
     {
       type: "object",
-      properties: {},
+      properties: {
+        alias: {
+          type: "string",
+          description: "可选，创建时直接设置别名（必须唯一，大小写不敏感）",
+        },
+      },
       required: [],
     },
-    async () => {
+    async (params) => {
       try {
+        const alias = params.alias as string | undefined;
+
+        // 如果提供了别名，先检查是否可用
+        if (alias && !sessionManager.isAliasAvailable(alias)) {
+          return createToolError(`别名 "${alias}" 已被其他设备使用`);
+        }
+
         // 创建会话：在会话管理器中分配一个新的 deviceId
         const session = sessionManager.createSession();
+
+        // 如果提供了别名，设置别名
+        if (alias) {
+          sessionManager.setAlias(session.deviceId, alias);
+        }
 
         // 创建控制器：在 WebSocket 服务器中注册，获取 clientId
         // clientId 用于 APP 扫码后建立连接
@@ -83,6 +101,7 @@ export function registerDeviceTools(
         return createToolResult(
           JSON.stringify({
             deviceId: session.deviceId,
+            alias: alias || null,
             qrCodeUrl,
             message: "请使用DG-LAB APP扫描二维码进行绑定",
           })
@@ -165,6 +184,7 @@ export function registerDeviceTools(
     "dg_set_alias",
     `为设备设置自定义别名，方便后续通过别名查找和管理设备。
 别名可以是用户名、昵称或任何便于识别的名称。
+注意：别名必须唯一，不能与其他设备的别名重复（大小写不敏感）。
 设置后可通过dg_find_device按别名查找，或在dg_disconnect中使用别名断开连接。`,
     {
       type: "object",
@@ -175,7 +195,7 @@ export function registerDeviceTools(
         },
         alias: {
           type: "string",
-          description: "自定义别名（如用户名、昵称等，支持中文）",
+          description: "自定义别名（如用户名、昵称等，支持中文，必须唯一）",
         },
       },
       required: ["deviceId", "alias"],
@@ -192,10 +212,10 @@ export function registerDeviceTools(
         return createToolError("缺少必需参数: alias");
       }
 
-      // 尝试设置别名，如果设备不存在会返回 false
-      const success = sessionManager.setAlias(deviceId, alias);
-      if (!success) {
-        return createToolError(`设备不存在: ${deviceId}`);
+      // 尝试设置别名，如果设备不存在或别名已被使用会返回错误
+      const result = sessionManager.setAlias(deviceId, alias);
+      if (!result.success) {
+        return createToolError(result.error || `设置别名失败`);
       }
 
       return createToolResult(

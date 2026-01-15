@@ -218,19 +218,57 @@ export class SessionManager {
    * 
    * 别名用于方便识别设备，支持中文和特殊字符。
    * 设置别名会同时更新会话的活跃时间。
+   * 别名必须唯一，不能与其他设备的别名重复。
    * 
    * @param deviceId - 设备 ID
    * @param alias - 新的别名
-   * @returns 是否成功设置（false 表示设备不存在或已过期）
+   * @returns 是否成功设置（false 表示设备不存在、已过期或别名已被使用）
    */
-  setAlias(deviceId: string, alias: string): boolean {
+  setAlias(deviceId: string, alias: string): { success: boolean; error?: string } {
     const session = this.sessions.get(deviceId);
-    if (session && !this.isExpired(session)) {
-      session.alias = alias;
-      session.lastActive = new Date();
-      return true;
+    if (!session || this.isExpired(session)) {
+      return { success: false, error: "设备不存在或已过期" };
     }
+
+    // 检查别名是否已被其他设备使用
+    const existingSession = this.findByAliasExact(alias);
+    if (existingSession && existingSession.deviceId !== deviceId) {
+      return { success: false, error: `别名 "${alias}" 已被其他设备使用` };
+    }
+
+    session.alias = alias;
+    session.lastActive = new Date();
+    return { success: true };
+  }
+
+  /**
+   * 检查别名是否可用
+   * 
+   * @param alias - 要检查的别名
+   * @param excludeDeviceId - 排除的设备 ID（用于更新别名时排除自己）
+   * @returns 别名是否可用
+   */
+  isAliasAvailable(alias: string, excludeDeviceId?: string): boolean {
+    const existingSession = this.findByAliasExact(alias);
+    if (!existingSession) return true;
+    if (excludeDeviceId && existingSession.deviceId === excludeDeviceId) return true;
     return false;
+  }
+
+  /**
+   * 精确匹配别名查找单个会话（大小写不敏感）
+   * 
+   * @param alias - 要查找的别名
+   * @returns 匹配的会话，如果不存在则返回 null
+   */
+  private findByAliasExact(alias: string): DeviceSession | null {
+    const lowerAlias = alias.toLowerCase();
+    for (const session of this.sessions.values()) {
+      if (!this.isExpired(session) && session.alias?.toLowerCase() === lowerAlias) {
+        return session;
+      }
+    }
+    return null;
   }
 
   /**
@@ -412,6 +450,34 @@ export class SessionManager {
     // 恢复连接状态
     session.ws = ws;
     session.clientId = clientId;
+    session.connected = true;
+    session.disconnectedAt = null;
+    session.lastActive = new Date();
+
+    console.log(`[会话] 设备重连成功: ${deviceId}`);
+    return true;
+  }
+
+  /**
+   * 清除重连状态（APP 重新绑定时调用）
+   * 
+   * 当 APP 重新绑定时，清除断开状态和重连超时计时器。
+   * 不修改 ws/clientId，因为这些由 onBindChange 回调单独处理。
+   * 
+   * @param deviceId - 设备 ID
+   * @returns 是否成功
+   */
+  clearReconnectionState(deviceId: string): boolean {
+    const session = this.sessions.get(deviceId);
+    if (!session) return false;
+
+    // 取消重连超时计时器
+    if (session.reconnectionTimeoutId) {
+      clearTimeout(session.reconnectionTimeoutId);
+      session.reconnectionTimeoutId = null;
+    }
+
+    // 恢复连接状态
     session.connected = true;
     session.disconnectedAt = null;
     session.lastActive = new Date();

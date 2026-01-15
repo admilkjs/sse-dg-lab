@@ -147,9 +147,9 @@ function createWSServer(config: ServerConfig, sessionManager: SessionManager): D
         // 绑定 APP 时处理重连逻辑
         if (appId) {
           sessionManager.onAppBound(session.deviceId);
-          // 如果是重新绑定（之前断开过），调用 handleReconnection 恢复会话状态
+          // 如果是重新绑定（之前断开过），清除重连状态
           if (session.disconnectedAt) {
-            sessionManager.handleReconnection(session.deviceId);
+            sessionManager.clearReconnectionState(session.deviceId);
           }
         }
       }

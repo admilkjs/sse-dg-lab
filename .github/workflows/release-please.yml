@@ -44,7 +44,7 @@ jobs:
         run: bun install
 
       - name: Run tests
-        run: bun test --bail --reporter=compact
+        run: bun test --bail --reporter=dots
 
       - name: Run linting
         run: bun run lint --quiet

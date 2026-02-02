@@ -1,0 +1,48 @@
+name: Publish to npm
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'npm tag (latest or next)'
+        required: true
+        type: string
+      version:
+        description: '版本号（可选，用于 dev 版本）'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Build package
+        run: bun run build
+
+      - name: Set dev version
+        if: ${{ inputs.version != '' }}
+        run: npm version ${{ inputs.version }} --no-git-tag-version
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public --tag ${{ inputs.tag }}

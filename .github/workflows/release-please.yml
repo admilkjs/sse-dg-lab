@@ -40,11 +40,11 @@ jobs:
 
       - name: Run tests
         if: ${{ steps.release.outputs.release_created }}
-        run: bun test
+        run: bun test --bail
 
       - name: Run linting
         if: ${{ steps.release.outputs.release_created }}
-        run: bun run lint
+        run: bun run lint --quiet
 
       - name: Setup Node.js
         if: ${{ steps.release.outputs.release_created }}

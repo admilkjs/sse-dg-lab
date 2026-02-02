@@ -1,19 +1,6 @@
 /**
- * @fileoverview 设备控制工具集
- * 
- * 提供 DG-LAB 设备的核心控制功能，包括强度调节、波形发送和状态查询。
- * 这些工具需要在设备完成绑定（boundToApp 为 true）后才能使用。
- * 
- * 主要功能：
- * - dg_set_strength: 调节通道输出强度
- * - dg_send_waveform: 发送波形数据控制输出模式
- * - dg_clear_waveform: 清空波形队列停止输出
- * - dg_get_status: 查询设备完整状态
- * 
- * 使用前提：
- * 1. 已通过 dg_connect 创建连接
- * 2. 用户已用 APP 扫码完成绑定
- * 3. 通过 dg_get_status 确认 boundToApp 为 true
+ * @module control-tools
+ * @description 设备控制工具集，提供强度调节、波形发送、状态查询等功能
  */
 
 import type { ToolManager } from "../tool-manager";
@@ -30,10 +17,7 @@ import { getWaveformStorage } from "./waveform-tools";
  */
 type StrengthMode = "increase" | "decrease" | "set";
 
-// ============================================================
-// 参数验证函数
-// 这些函数提供统一的参数校验逻辑，返回类型安全的结果
-// ============================================================
+// --- 参数验证 ---
 
 /**
  * 解析设备标识
@@ -195,9 +179,7 @@ function validateWaveforms(waveforms: unknown): { error: string } | { waveforms:
   return { waveforms: waveforms as string[] };
 }
 
-// ============================================================
-// 工具注册
-// ============================================================
+// --- 工具注册 ---
 
 /**
  * 注册所有设备控制相关的 MCP 工具
@@ -747,9 +729,7 @@ export function registerControlTools(
   );
 }
 
-// ============================================================
-// 导出验证函数供测试使用
-// ============================================================
+// --- 导出验证函数 ---
 
 export {
   validateDeviceId,

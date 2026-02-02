@@ -1,6 +1,6 @@
 /**
- * @fileoverview 应用初始化模块
- * @description 封装应用的初始化逻辑，包括依赖注入和模块组装
+ * @module app
+ * @description 应用初始化模块，负责组装各模块依赖并启动应用
  */
 
 import { createRequire } from "module";

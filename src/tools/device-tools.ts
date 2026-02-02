@@ -1,18 +1,6 @@
 /**
- * @fileoverview 设备管理工具集
- * 
- * 提供 DG-LAB 设备的连接、查询、别名管理和断开等核心功能。
- * 这些工具是 AI 与 DG-LAB 设备交互的主要入口，负责：
- * - 创建新的设备连接并生成二维码供 APP 扫描
- * - 查询和管理已连接的设备列表
- * - 为设备设置别名以便识别和管理
- * - 断开并清理设备连接
- * 
- * 典型使用流程：
- * 1. 调用 dg_connect 创建连接，获取二维码
- * 2. 用户使用 DG-LAB APP 扫描二维码
- * 3. 通过 dg_list_devices 确认设备已绑定
- * 4. 使用 control-tools 中的工具控制设备
+ * @module device-tools
+ * @description 设备管理工具集，提供连接、查询、别名管理和断开功能
  */
 
 import type { ToolManager } from "../tool-manager";

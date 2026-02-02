@@ -1,10 +1,6 @@
 /**
- * @fileoverview 波形工具
- * @description MCP 波形管理工具
- * - dg_parse_waveform: 解析波形数据并保存
- * - dg_list_waveforms: 列出所有保存的波形
- * - dg_get_waveform: 按名称获取波形
- * - dg_delete_waveform: 按名称删除波形
+ * @module waveform-tools
+ * @description MCP 波形管理工具，提供解析、保存、列表、获取、删除功能
  */
 
 import type { Tool, ToolResult, ToolHandler } from "../tool-manager";

@@ -1,7 +1,6 @@
 /**
- * @fileoverview HTTP 服务器
- * @description 提供 SSE、POST 端点和 WebSocket 的 HTTP 服务器
- * SSE/POST 用于 MCP 协议，WebSocket 用于 DG-LAB APP 连接
+ * @module server
+ * @description HTTP 服务器模块，提供 SSE/POST/WebSocket 端点
  */
 
 import express from "express";

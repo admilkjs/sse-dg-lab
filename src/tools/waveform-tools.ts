@@ -4,6 +4,7 @@
  */
 
 import type { Tool, ToolResult, ToolHandler } from "../tool-manager";
+import { createToolResult, createToolError } from "../tool-manager";
 import { WaveformStorage, persistWaveforms } from "../waveform-storage";
 import { parseWaveform } from "../waveform-parser";
 
@@ -41,26 +42,12 @@ export function getWaveformStorage(): WaveformStorage {
 }
 
 /**
- * 创建错误结果
- * @param message - 错误消息
- * @returns 工具结果
- */
-function createToolError(message: string): ToolResult {
-  return {
-    content: [{ type: "text", text: `Error: ${message}` }],
-    isError: true,
-  };
-}
-
-/**
- * 创建成功结果
+ * 创建成功结果（格式化 JSON）
  * @param data - 数据
  * @returns 工具结果
  */
 function createToolSuccess(data: unknown): ToolResult {
-  return {
-    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-  };
+  return createToolResult(JSON.stringify(data, null, 2));
 }
 
 /**

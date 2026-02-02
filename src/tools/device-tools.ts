@@ -7,8 +7,11 @@ import type { ToolManager } from "../tool-manager";
 import { createToolResult, createToolError } from "../tool-manager";
 import type { SessionManager } from "../session-manager";
 import type { DGLabWSServer } from "../ws-server";
-import { getEffectiveIP, getLocalIP } from "../config";
-import { ConnectionError, ToolError, ErrorCode } from "../errors";
+import { getLocalIP } from "../config";
+import { ConnectionError, ErrorCode } from "../errors";
+
+// 从公共模块导入设备状态构建函数
+import { buildDeviceStatus } from "../utils/device-resolver";
 
 /**
  * 注册所有设备管理相关的 MCP 工具
@@ -137,30 +140,10 @@ export function registerDeviceTools(
         sessions = sessionManager.findByAlias(alias);
       }
 
-      // 构建设备状态列表，合并会话信息和 WebSocket 绑定状态
-      const devices = sessions.map((s) => {
-        // boundToApp 表示 APP 是否已扫码并建立连接
-        // 只有 boundToApp 为 true 时才能控制设备
-        const isBound = s.clientId ? wsServer.isControllerBound(s.clientId) : false;
-        
-        // 计算剩余重连时间（秒）
-        const reconnectionTimeRemaining = sessionManager.getReconnectionTimeRemaining(s.deviceId);
-        const reconnectionTimeRemainingSeconds = reconnectionTimeRemaining !== null 
-          ? Math.ceil(reconnectionTimeRemaining / 1000) 
-          : null;
-        
-        return {
-          deviceId: s.deviceId,
-          alias: s.alias,
-          connected: s.connected,
-          boundToApp: isBound,
-          strengthA: s.strengthA,
-          strengthB: s.strengthB,
-          strengthLimitA: s.strengthLimitA,
-          strengthLimitB: s.strengthLimitB,
-          reconnectionTimeRemaining: reconnectionTimeRemainingSeconds,
-        };
-      });
+      // 构建设备状态列表，使用公共函数
+      const devices = sessions.map((s) =>
+        buildDeviceStatus(s, wsServer, sessionManager)
+      );
 
       return createToolResult(JSON.stringify({ devices, count: devices.length }));
     }
@@ -243,29 +226,11 @@ export function registerDeviceTools(
 
       // 查找所有匹配的设备（支持模糊匹配）
       const sessions = sessionManager.findByAlias(alias);
-      
-      // 构建设备状态列表，与 dg_list_devices 格式一致
-      const devices = sessions.map((s) => {
-        const isBound = s.clientId ? wsServer.isControllerBound(s.clientId) : false;
-        
-        // 计算剩余重连时间（秒）
-        const reconnectionTimeRemaining = sessionManager.getReconnectionTimeRemaining(s.deviceId);
-        const reconnectionTimeRemainingSeconds = reconnectionTimeRemaining !== null 
-          ? Math.ceil(reconnectionTimeRemaining / 1000) 
-          : null;
-        
-        return {
-          deviceId: s.deviceId,
-          alias: s.alias,
-          connected: s.connected,
-          boundToApp: isBound,
-          strengthA: s.strengthA,
-          strengthB: s.strengthB,
-          strengthLimitA: s.strengthLimitA,
-          strengthLimitB: s.strengthLimitB,
-          reconnectionTimeRemaining: reconnectionTimeRemainingSeconds,
-        };
-      });
+
+      // 构建设备状态列表，使用公共函数
+      const devices = sessions.map((s) =>
+        buildDeviceStatus(s, wsServer, sessionManager)
+      );
 
       return createToolResult(
         JSON.stringify({

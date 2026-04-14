@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.4.1](https://github.com/admilkjs/sse-dg-lab/compare/v1.4.0...v1.4.1) (2026-04-14)
+
+
+### 🐛 错误修复
+
+* test文件错误 ([d4e6a4e](https://github.com/admilkjs/sse-dg-lab/commit/d4e6a4ec6344376edeb16322d93017356955bb2f))
+
+
+### 📝 文档更新
+
+* awa ([9b2e278](https://github.com/admilkjs/sse-dg-lab/commit/9b2e2784602db7931862db253f1a6aa1c36e1ac7))
+
+
+### ♻️ 代码重构
+
+* 代码逻辑优化，拆分大文件并提取公共模块 ([2d8f13a](https://github.com/admilkjs/sse-dg-lab/commit/2d8f13aaf4888bf4c3a95d6d61c67b6a9ba1e963))
+
+
+### 🎡 持续集成
+
+* 使用 reusable workflow 统一 npm 发布 ([fa85a9d](https://github.com/admilkjs/sse-dg-lab/commit/fa85a9dc3fecd4eb04d0a204b1685a7006ae19db))
+* 合并为单一发布入口点以支持 OIDC 可信发布 ([a8929de](https://github.com/admilkjs/sse-dg-lab/commit/a8929deeb506bae5923694d3f2c7f9067a9f9beb))
+* 更新发布工作流以支持 PR 和 push 预览版本 ([24fe296](https://github.com/admilkjs/sse-dg-lab/commit/24fe296b1d8a18c9631e4090df86d5ae72b95090))
+* 更新发布工作流以支持 PR 版本和合并逻辑 ([a247199](https://github.com/admilkjs/sse-dg-lab/commit/a247199fa87f37bbbeffd72959d94cce67be00f8))
+* 更新发布工作流以简化版本获取和发布逻辑 ([dcedf5f](https://github.com/admilkjs/sse-dg-lab/commit/dcedf5f716aaa853514dbf7f7acd5d2146f8bb34))
+* 更新测试报告格式为 dots ([b4c24dd](https://github.com/admilkjs/sse-dg-lab/commit/b4c24dd42ec286f4cf94d333399f0ed9e37286cb))
+* 添加 CI/test 工作流并优化代码风格 ([b7b74f4](https://github.com/admilkjs/sse-dg-lab/commit/b7b74f438ab8f12436bdaafcdde0ddcec4cffb56))
+
 ## [1.4.0](https://github.com/admilkjs/sse-dg-lab/compare/v1.3.0...v1.4.0) (2026-01-15)
 
 
